@@ -1,0 +1,66 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+}
+
+enum JenisKelamin {
+  LAKI_LAKI
+  PEREMPUAN
+}
+
+model User {
+  id        String   @id @default(uuid())
+  nama      String
+  email     String   @unique
+  password  String
+  role      Role     @default(ADMIN)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  wargaDiinput Warga[]
+
+  @@map("users")
+}
+
+model Warga {
+  id                        String        @id @default(uuid())
+  kabupaten                 String
+  kecamatan                 String
+  desaKelurahan             String
+  alamat                    String?       @db.Text
+  rw                        String?
+  rt                        String?
+  desilTerbaru              String?
+  nomorKK                   String
+  nik                       String        @unique
+  nama                      String
+  jenisKelamin              JenisKelamin?
+  tanggalLahir              DateTime?
+  tempatLahir               String?
+  statusPerkawinan          String?
+  hubunganKeluarga          String?
+  keberadaanAnggotaKeluarga String?
+  disabilitas               String?
+  keteranganDisabilitas     String?
+  pbiJk                     String?
+  bansosPkh                 String?
+  bansosSembako             String?
+
+  createdById               String?
+  createdBy                 User?         @relation(fields: [createdById], references: [id])
+  createdAt                 DateTime      @default(now())
+  updatedAt                 DateTime      @updatedAt
+
+  @@index([kabupaten])
+  @@index([kecamatan])
+  @@index([desilTerbaru])
+  @@map("warga")
+}
