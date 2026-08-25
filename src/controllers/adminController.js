@@ -15,7 +15,36 @@ function isAktifWhere(field) {
     };
 }
 
+function buildSebaranPerDesil(groups) {
+    const sebaranMap = {};
+
+    groups.forEach((g) => {
+        const jumlah = g._count._all;
+        const match = String(g.desilTerbaru || "").match(/\d+/);
+        const angka = match ? parseInt(match[0], 10) : NaN;
+        if (!isNaN(angka) && angka >= 1 && angka <= 10) {
+            sebaranMap[String(angka)] = (sebaranMap[String(angka)] || 0) + jumlah;
+        }
+    });
+
+    const sebaran = Array.from({ length: 5 }, (_, i) => {
+        const desil = String(i + 1);
+        return { desil, jumlah: sebaranMap[desil] || 0 };
+    });
+
+    const jumlahDesil6Sampai10 = [6, 7, 8, 9, 10].reduce(
+        (total, d) => total + (sebaranMap[String(d)] || 0),
+        0
+    );
+    sebaran.push({ desil: "6-10", jumlah: jumlahDesil6Sampai10 });
+
+    return sebaran;
+}
+
 export async function getDashboardStats(req, res) {
+    const usia60TahunLalu = new Date();
+    usia60TahunLalu.setFullYear(usia60TahunLalu.getFullYear() - 60);
+
     const [
         totalWarga,
         disabilitasCount,
@@ -23,6 +52,7 @@ export async function getDashboardStats(req, res) {
         pkhCount,
         sembakoCount,
         penerimaAktifCount,
+        lansiaCount,
         desilGroups,
     ] = await Promise.all([
         prisma.warga.count(),
@@ -39,39 +69,21 @@ export async function getDashboardStats(req, res) {
                 ],
             },
         }),
+        prisma.warga.count({
+            where: { tanggalLahir: { lte: usia60TahunLalu } },
+        }),
         prisma.warga.groupBy({
             by: ["desilTerbaru"],
             _count: { _all: true },
         }),
     ]);
 
-    let totalDesilSum = 0;
-    let totalDesilCount = 0;
-    const sebaranMap = {};
-
-    desilGroups.forEach((g) => {
-        const jumlah = g._count._all;
-        const match = String(g.desilTerbaru || "").match(/\d+/); // tangkap "DESIL 4" -> "4"
-        const angka = match ? parseInt(match[0], 10) : NaN;
-        if (!isNaN(angka) && angka >= 1 && angka <= 10) {
-            totalDesilSum += angka * jumlah;
-            totalDesilCount += jumlah;
-            sebaranMap[String(angka)] = (sebaranMap[String(angka)] || 0) + jumlah;
-        }
-    });
-
-    const rataRataDesil =
-        totalDesilCount > 0 ? Number((totalDesilSum / totalDesilCount).toFixed(1)) : 0;
-
-    const sebaranPerDesil = Array.from({ length: 10 }, (_, i) => {
-        const desil = String(i + 1);
-        return { desil, jumlah: sebaranMap[desil] || 0 };
-    });
+    const sebaranPerDesil = buildSebaranPerDesil(desilGroups);
 
     return success(res, {
         totalWarga,
         penerimaBantuanAktif: penerimaAktifCount,
-        rataRataDesil,
+        jumlahLansia: lansiaCount,
         penyandangDisabilitas: disabilitasCount,
         sebaranPerDesil,
         statusBantuanSosial: [
