@@ -33,7 +33,7 @@ enum StatusPengusulan {
 }
 
 model User {
-  id        String   @id @default(uuid())
+  id        Int   @id @default(autoincrement())
   nama      String
   email     String   @unique
   password  String
@@ -69,7 +69,7 @@ model Warga {
   disabilitas               String?
   keteranganDisabilitas     String?
 
-  createdById               String?
+  createdById               Int?
   createdBy                 User?         @relation(fields: [createdById], references: [id])
   createdAt                 DateTime      @default(now())
   updatedAt                 DateTime      @updatedAt
@@ -81,7 +81,7 @@ model Warga {
 }
 
 model ProgramBantuan {
-  id        String   @id @default(uuid())
+  id        Int   @id @default(autoincrement())
   nama      String   @unique
   aktif     Boolean  @default(true)
   urutan    Int      @default(0)
@@ -94,7 +94,7 @@ model ProgramBantuan {
 }
 
 model Pengusulan {
-  id                String           @id @default(uuid())
+  id                Int           @id @default(autoincrement())
   jenisPengusulan   JenisPengusulan
   jenisUsulan       JenisUsulan
 
@@ -104,7 +104,7 @@ model Pengusulan {
   namaCalonPenerima String
   nikCalonPenerima  String
 
-  programId         String
+  programId         Int
   program           ProgramBantuan   @relation(fields: [programId], references: [id])
 
   kabupaten         String
@@ -131,7 +131,7 @@ model Pengusulan {
 // --- Bidang: Fakir Miskin ---
 
 model BansosUepSajuta {
-  id            String   @id @default(uuid())
+  id            Int   @id @default(autoincrement())
   nik           String
   nama          String?
   kabupaten     String?
@@ -147,7 +147,7 @@ model BansosUepSajuta {
 }
 
 model BansosUepPotendeLima {
-  id            String   @id @default(uuid())
+  id            Int   @id @default(autoincrement())
   nik           String
   nama          String?
   kabupaten     String?
@@ -163,7 +163,7 @@ model BansosUepPotendeLima {
 }
 
 model BansosUepPotendeSapuluh {
-  id            String   @id @default(uuid())
+  id            Int   @id @default(autoincrement())
   nik           String
   nama          String?
   kabupaten     String?
@@ -179,7 +179,7 @@ model BansosUepPotendeSapuluh {
 }
 
 model BansosKube {
-  id            String   @id @default(uuid())
+  id            Int   @id @default(autoincrement())
   nik           String
   nama          String?
   kabupaten     String?
@@ -195,7 +195,7 @@ model BansosKube {
 }
 
 model BansosBantuanTunai {
-  id            String   @id @default(uuid())
+  id            Int   @id @default(autoincrement())
   nik           String
   nama          String?
   kabupaten     String?
@@ -213,7 +213,7 @@ model BansosBantuanTunai {
 // --- Bidang: Linjamsos ---
 
 model BansosPanganStunting {
-  id            String   @id @default(uuid())
+  id            Int   @id @default(autoincrement())
   nik           String
   nama          String?
   kabupaten     String?
@@ -229,7 +229,7 @@ model BansosPanganStunting {
 }
 
 model BansosRst {
-  id            String   @id @default(uuid())
+  id            Int   @id @default(autoincrement())
   nik           String
   nama          String?
   kabupaten     String?
@@ -247,7 +247,7 @@ model BansosRst {
 // --- Bidang: Rehsos ---
 
 model BansosBantalanLansia {
-  id            String   @id @default(uuid())
+  id            Int   @id @default(autoincrement())
   nik           String
   nama          String?
   kabupaten     String?
@@ -263,7 +263,7 @@ model BansosBantalanLansia {
 }
 
 model BansosAlatBantuLansia {
-  id            String   @id @default(uuid())
+  id            Int   @id @default(autoincrement())
   nik           String
   nama          String?
   kabupaten     String?
@@ -279,7 +279,7 @@ model BansosAlatBantuLansia {
 }
 
 model BansosAlatBantuDisabilitas {
-  id            String   @id @default(uuid())
+  id            Int   @id @default(autoincrement())
   nik           String
   nama          String?
   kabupaten     String?
@@ -295,7 +295,7 @@ model BansosAlatBantuDisabilitas {
 }
 
 model BansosPanadaLansia {
-  id            String   @id @default(uuid())
+  id            Int   @id @default(autoincrement())
   nik           String
   nama          String?
   kabupaten     String?
@@ -311,7 +311,7 @@ model BansosPanadaLansia {
 }
 
 model BansosPanadaDisabilitas {
-  id            String   @id @default(uuid())
+  id            Int   @id @default(autoincrement())
   nik           String
   nama          String?
   kabupaten     String?
@@ -327,7 +327,7 @@ model BansosPanadaDisabilitas {
 }
 
 model BansosUepBwblp {
-  id            String   @id @default(uuid())
+  id            Int   @id @default(autoincrement())
   nik           String
   nama          String?
   kabupaten     String?
@@ -345,7 +345,7 @@ model BansosUepBwblp {
 // --- Bidang: Dayasos ---
 
 model BansosUepKeluargaPlasma {
-  id            String   @id @default(uuid())
+  id            Int   @id @default(autoincrement())
   nik           String
   nama          String?
   kabupaten     String?

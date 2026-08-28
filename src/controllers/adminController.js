@@ -272,55 +272,118 @@ export async function uploadBansosExcel(req, res) {
         return error(res, "File Excel kosong atau tidak ada baris data", 400);
     }
 
-    let inserted = 0;
-    let updated = 0;
-    const gagal = [];
+    res.status(200);
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    const heartbeat = setInterval(() => {
+        res.write(" ");
+    }, 10000);
 
-    for (let i = 0; i < rows.length; i++) {
-        const nomorBaris = i + 2;
-        const { valid, data } = mapExcelRowToBansos(rows[i]);
+    const t0 = Date.now();
+    const kunci = (nik, tahun) => `${nik}|${tahun ?? ""}`;
 
-        if (!valid) {
-            gagal.push({ baris: nomorBaris, alasan: "NIK kosong atau tidak valid (harus 16 digit)" });
-            continue;
+    try {
+        const gagal = [];
+
+        const validRows = [];
+        const kunciTerlihat = new Set();
+
+        for (let i = 0; i < rows.length; i++) {
+            const nomorBaris = i + 2;
+            const { valid, data } = mapExcelRowToBansos(rows[i]);
+
+            if (!valid) {
+                gagal.push({ baris: nomorBaris, alasan: "NIK kosong atau tidak valid (harus 16 digit)" });
+                continue;
+            }
+            const k = kunci(data.nik, data.tahunBantuan);
+            if (kunciTerlihat.has(k)) {
+                gagal.push({ baris: nomorBaris, alasan: `NIK ${data.nik} (tahun ${data.tahunBantuan ?? "-"}) duplikat di dalam file ini` });
+                continue;
+            }
+            kunciTerlihat.add(k);
+            validRows.push({ nomorBaris, data });
         }
 
-        try {
-            const existing = await delegate.findUnique({
-                where: {
-                    nik_tahunBantuan: {
-                        nik: data.nik,
-                        tahunBantuan: data.tahunBantuan,
-                    },
-                },
-                select: { id: true },
-            });
+        console.log(`[upload-bansos:${program.slug}] validasi selesai: ${validRows.length} valid, ${gagal.length} gagal (${Date.now() - t0}ms)`);
 
-            if (existing) {
+        const CHUNK_CEK = 2000;
+        const existingMap = new Map();
+        for (let i = 0; i < validRows.length; i += CHUNK_CEK) {
+            const batchNik = [...new Set(validRows.slice(i, i + CHUNK_CEK).map((v) => v.data.nik))];
+            const existing = await delegate.findMany({
+                where: { nik: { in: batchNik } },
+                select: { id: true, nik: true, tahunBantuan: true },
+            });
+            existing.forEach((row) => existingMap.set(kunci(row.nik, row.tahunBantuan), row.id));
+        }
+
+        console.log(`[upload-bansos:${program.slug}] cek existing selesai: ${existingMap.size} sudah ada (${Date.now() - t0}ms)`);
+
+        const toCreate = [];
+        const toUpdate = [];
+        for (const v of validRows) {
+            const existingId = existingMap.get(kunci(v.data.nik, v.data.tahunBantuan));
+            if (existingId) {
+                toUpdate.push({ ...v, existingId });
+            } else {
+                toCreate.push(v);
+            }
+        }
+
+        let inserted = 0;
+        const CHUNK_INSERT = 1000;
+        for (let i = 0; i < toCreate.length; i += CHUNK_INSERT) {
+            const batch = toCreate.slice(i, i + CHUNK_INSERT);
+            try {
+                const result = await delegate.createMany({
+                    data: batch.map((v) => ({ ...v.data, createdById: req.user.id })),
+                    skipDuplicates: true,
+                });
+                inserted += result.count;
+            } catch (err) {
+                console.error("BULK INSERT BANSOS ERROR:", err);
+                batch.forEach((v) => gagal.push({ baris: v.nomorBaris, alasan: "Gagal menyimpan (batch insert)" }));
+            }
+        }
+
+        console.log(`[upload-bansos:${program.slug}] insert selesai: ${inserted} baris (${Date.now() - t0}ms)`);
+
+        let updated = 0;
+        for (const v of toUpdate) {
+            try {
                 await delegate.update({
-                    where: { id: existing.id },
-                    data: { ...data, createdById: req.user.id },
+                    where: { id: v.existingId },
+                    data: { ...v.data, createdById: req.user.id },
                 });
                 updated += 1;
-            } else {
-                await delegate.create({
-                    data: { ...data, createdById: req.user.id },
-                });
-                inserted += 1;
+            } catch (err) {
+                gagal.push({ baris: v.nomorBaris, alasan: "Gagal menyimpan ke database" });
             }
-        } catch (err) {
-            gagal.push({ baris: nomorBaris, alasan: "Gagal menyimpan ke database" });
         }
-    }
 
-    return success(res, {
-        program: program.nama,
-        fileTersimpan: req.file.filename,
-        totalBaris: rows.length,
-        berhasilDitambahkan: inserted,
-        berhasilDiperbarui: updated,
-        gagal,
-    }, `Upload data ${program.nama} selesai diproses`);
+        console.log(`[upload-bansos:${program.slug}] SELESAI: +${inserted} update${updated} (${Date.now() - t0}ms)`);
+
+        clearInterval(heartbeat);
+        res.end(JSON.stringify({
+            success: true,
+            message: `Upload data ${program.nama} selesai diproses`,
+            data: {
+                program: program.nama,
+                fileTersimpan: req.file.filename,
+                totalBaris: rows.length,
+                berhasilDitambahkan: inserted,
+                berhasilDiperbarui: updated,
+                gagal,
+            },
+        }));
+    } catch (err) {
+        console.error(`[upload-bansos:${program.slug}] FATAL:`, err);
+        clearInterval(heartbeat);
+        res.end(JSON.stringify({
+            success: false,
+            message: err.message || "Terjadi kesalahan tak terduga saat memproses file",
+        }));
+    }
 }
 
 export async function getListBansosPenerima(req, res) {
