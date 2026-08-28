@@ -62,10 +62,10 @@ export async function getDashboardStats(req, res) {
 
 
 export async function getListWarga(req, res) {
-    const { search = "", page = 1, limit = 10 } = req.query;
+    const { search = "", page = 1, limit = 20 } = req.query;
 
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
-    const limitNum = Math.max(parseInt(limit, 10) || 10, 1);
+    const limitNum = Math.max(parseInt(limit, 10) || 20, 1);
     const skip = (pageNum - 1) * limitNum;
 
     const keyword = String(search).trim();
@@ -86,7 +86,7 @@ export async function getListWarga(req, res) {
         prisma.warga.count({ where }),
         prisma.warga.findMany({
             where,
-            orderBy: { updatedAt: "desc" },
+            orderBy: { nama: "asc" },
             skip,
             take: limitNum,
             select: {
@@ -331,10 +331,10 @@ export async function getListBansosPenerima(req, res) {
     }
 
     const delegate = prisma[program.model];
-    const { search = "", page = 1, limit = 10 } = req.query;
+    const { search = "", page = 1, limit = 20 } = req.query;
 
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
-    const limitNum = Math.max(parseInt(limit, 10) || 10, 1);
+    const limitNum = Math.max(parseInt(limit, 10) || 20, 1);
     const skip = (pageNum - 1) * limitNum;
 
     const keyword = String(search).trim();
@@ -443,10 +443,10 @@ export async function getDashboardPengusulan(req, res) {
 }
 
 export async function getListPengusulan(req, res) {
-    const { status, page = 1, limit = 10 } = req.query;
+    const { status, page = 1, limit = 20 } = req.query;
 
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
-    const limitNum = Math.max(parseInt(limit, 10) || 10, 1);
+    const limitNum = Math.max(parseInt(limit, 10) || 20, 1);
     const skip = (pageNum - 1) * limitNum;
 
     const where = status ? { status } : {};
