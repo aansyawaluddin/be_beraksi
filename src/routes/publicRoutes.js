@@ -1,9 +1,17 @@
 import { Router } from "express";
-import { cekStatusByNik } from "../controllers/publicController.js";
+import {
+    cekStatusByNik,
+    getProgramBantuan,
+    createPengusulan,
+} from "../controllers/publicController.js";
+import { uploadDokumenPengusulan } from "../middleware/uploadDokumenPengusulan.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
 const router = Router();
 
 router.post("/cek-status", asyncHandler(cekStatusByNik));
+
+router.get("/program-bantuan", asyncHandler(getProgramBantuan));
+router.post("/pengusulan", uploadDokumenPengusulan, asyncHandler(createPengusulan));
 
 export default router;

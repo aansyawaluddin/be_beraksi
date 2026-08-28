@@ -16,6 +16,22 @@ enum JenisKelamin {
   PEREMPUAN
 }
 
+enum JenisPengusulan {
+  DIRI_SENDIRI
+  ORANG_LAIN
+}
+
+enum JenisUsulan {
+  INDIVIDU
+  KELUARGA
+}
+
+enum StatusPengusulan {
+  MENUNGGU_REVIEW
+  DISETUJUI
+  DITOLAK
+}
+
 model User {
   id        String   @id @default(uuid())
   nama      String
@@ -63,4 +79,52 @@ model Warga {
   @@index([kecamatan])
   @@index([desilTerbaru])
   @@map("warga")
+}
+
+model ProgramBantuan {
+  id        String   @id @default(uuid())
+  nama      String   @unique
+  aktif     Boolean  @default(true)
+  urutan    Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  pengusulan Pengusulan[]
+
+  @@map("program_bantuan")
+}
+
+model Pengusulan {
+  id                String           @id @default(uuid())
+  jenisPengusulan   JenisPengusulan
+  jenisUsulan       JenisUsulan
+
+  namaPengusul      String
+  nikPengusul       String
+
+  namaCalonPenerima String
+  nikCalonPenerima  String
+
+  programId         String
+  program           ProgramBantuan   @relation(fields: [programId], references: [id])
+
+  kabupaten         String
+  nomorWhatsapp     String
+  keterangan        String?          @db.Text
+
+  fotoKtp           String
+  fotoKk            String
+  fotoRumah         String
+
+  status            StatusPengusulan @default(MENUNGGU_REVIEW)
+  catatanAdmin      String?          @db.Text
+  diprosesAt        DateTime?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([nikCalonPenerima])
+  @@index([status])
+  @@index([programId])
+  @@map("pengusulan")
 }

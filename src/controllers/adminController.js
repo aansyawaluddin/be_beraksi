@@ -4,42 +4,12 @@ import XLSX from "xlsx";
 import prisma from "../lib/prisma.js";
 import { success, error } from "../utils/response.js";
 import { mapExcelRowToWarga } from "../utils/wargaMapper.js";
-import { NILAI_TIDAK_AKTIF } from "../utils/statusBantuan.js";
-
-function isAktifWhere(field) {
-    return {
-        AND: [
-            { [field]: { not: null } },
-            { NOT: { [field]: { in: NILAI_TIDAK_AKTIF } } },
-        ],
-    };
-}
-
-function buildSebaranPerDesil(groups) {
-    const sebaranMap = {};
-
-    groups.forEach((g) => {
-        const jumlah = g._count._all;
-        const match = String(g.desilTerbaru || "").match(/\d+/);
-        const angka = match ? parseInt(match[0], 10) : NaN;
-        if (!isNaN(angka) && angka >= 1 && angka <= 10) {
-            sebaranMap[String(angka)] = (sebaranMap[String(angka)] || 0) + jumlah;
-        }
-    });
-
-    const sebaran = Array.from({ length: 5 }, (_, i) => {
-        const desil = String(i + 1);
-        return { desil, jumlah: sebaranMap[desil] || 0 };
-    });
-
-    const jumlahDesil6Sampai10 = [6, 7, 8, 9, 10].reduce(
-        (total, d) => total + (sebaranMap[String(d)] || 0),
-        0
-    );
-    sebaran.push({ desil: "6-10", jumlah: jumlahDesil6Sampai10 });
-
-    return sebaran;
-}
+import { isAktifWhere, buildSebaranPerDesil } from "../utils/wargaStats.js";
+import {
+    STATUS_PENGUSULAN_UPDATE_VALID,
+    formatRingkasanPengusulan,
+    formatDetailPengusulan,
+} from "../utils/pengusulanMapper.js";
 
 export async function getDashboardStats(req, res) {
     const usia60TahunLalu = new Date();
@@ -174,7 +144,7 @@ export async function uploadWargaExcel(req, res) {
 
     let inserted = 0;
     let updated = 0;
-    const gagal = []; // { baris, alasan }
+    const gagal = [];
 
     for (let i = 0; i < rows.length; i++) {
         const nomorBaris = i + 2;
@@ -272,4 +242,100 @@ export async function updateAccountSettings(req, res) {
     });
 
     return success(res, updated, "Pengaturan akun berhasil diperbarui");
+}
+
+export async function getDashboardPengusulan(req, res) {
+    const [totalMasuk, menungguReview, disetujui, ditolak] = await Promise.all([
+        prisma.pengusulan.count(),
+        prisma.pengusulan.count({ where: { status: "MENUNGGU_REVIEW" } }),
+        prisma.pengusulan.count({ where: { status: "DISETUJUI" } }),
+        prisma.pengusulan.count({ where: { status: "DITOLAK" } }),
+    ]);
+
+    return success(res, {
+        totalMasuk,
+        menungguReview,
+        disetujui,
+        ditolak,
+    });
+}
+
+export async function getListPengusulan(req, res) {
+    const { status, page = 1, limit = 10 } = req.query;
+
+    const pageNum = Math.max(parseInt(page, 10) || 1, 1);
+    const limitNum = Math.max(parseInt(limit, 10) || 10, 1);
+    const skip = (pageNum - 1) * limitNum;
+
+    const where = status ? { status } : {};
+
+    const [total, data] = await Promise.all([
+        prisma.pengusulan.count({ where }),
+        prisma.pengusulan.findMany({
+            where,
+            orderBy: { createdAt: "desc" },
+            skip,
+            take: limitNum,
+            include: {
+                program: { select: { nama: true } },
+            },
+        }),
+    ]);
+
+    return success(res, {
+        data: data.map(formatRingkasanPengusulan),
+        pagination: {
+            total,
+            page: pageNum,
+            limit: limitNum,
+            totalPages: Math.max(Math.ceil(total / limitNum), 1),
+        },
+    });
+}
+
+export async function getDetailPengusulan(req, res) {
+    const { id } = req.params;
+
+    const pengusulan = await prisma.pengusulan.findUnique({
+        where: { id },
+        include: {
+            program: { select: { id: true, nama: true } },
+        },
+    });
+
+    if (!pengusulan) {
+        return error(res, "Data pengusulan tidak ditemukan", 404);
+    }
+
+    return success(res, formatDetailPengusulan(pengusulan));
+}
+
+export async function updateStatusPengusulan(req, res) {
+    const { id } = req.params;
+    const { status, catatanAdmin } = req.body;
+
+    if (!STATUS_PENGUSULAN_UPDATE_VALID.includes(status)) {
+        return error(res, "Status harus DISETUJUI atau DITOLAK", 400);
+    }
+
+    const pengusulan = await prisma.pengusulan.findUnique({ where: { id } });
+
+    if (!pengusulan) {
+        return error(res, "Data pengusulan tidak ditemukan", 404);
+    }
+
+    const updated = await prisma.pengusulan.update({
+        where: { id },
+        data: {
+            status,
+            catatanAdmin: catatanAdmin ? String(catatanAdmin).trim() : null,
+            diprosesAt: new Date(),
+        },
+    });
+
+    const pesan = status === "DISETUJUI"
+        ? "Pengusulan berhasil disetujui"
+        : "Pengusulan berhasil ditolak";
+
+    return success(res, updated, pesan);
 }
