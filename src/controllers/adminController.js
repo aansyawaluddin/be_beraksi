@@ -135,77 +135,108 @@ export async function uploadWargaExcel(req, res) {
         return error(res, "File Excel kosong atau tidak ada baris data", 400);
     }
 
-    const gagal = [];
+    res.status(200);
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    const heartbeat = setInterval(() => {
+        console.log("[upload-warga] heartbeat...");
+        res.write(" ");
+    }, 10000);
 
-    const validRows = [];
-    const nikTerlihat = new Set();
+    const t0 = Date.now();
 
-    for (let i = 0; i < rows.length; i++) {
-        const nomorBaris = i + 2;
-        const { valid, data } = mapExcelRowToWarga(rows[i]);
+    try {
+        const gagal = [];
 
-        if (!valid) {
-            gagal.push({ baris: nomorBaris, alasan: "NIK, Nomor KK, atau Nama kosong/tidak valid" });
-            continue;
+        const validRows = [];
+        const nikTerlihat = new Set();
+
+        for (let i = 0; i < rows.length; i++) {
+            const nomorBaris = i + 2;
+            const { valid, data } = mapExcelRowToWarga(rows[i]);
+
+            if (!valid) {
+                gagal.push({ baris: nomorBaris, alasan: "NIK, Nomor KK, atau Nama kosong/tidak valid" });
+                continue;
+            }
+            if (nikTerlihat.has(data.nik)) {
+                gagal.push({ baris: nomorBaris, alasan: `NIK ${data.nik} duplikat di dalam file ini` });
+                continue;
+            }
+            nikTerlihat.add(data.nik);
+            validRows.push({ nomorBaris, data });
         }
-        if (nikTerlihat.has(data.nik)) {
-            gagal.push({ baris: nomorBaris, alasan: `NIK ${data.nik} duplikat di dalam file ini` });
-            continue;
-        }
-        nikTerlihat.add(data.nik);
-        validRows.push({ nomorBaris, data });
-    }
 
-    const CHUNK_CEK = 2000;
-    const nikSudahAda = new Set();
-    for (let i = 0; i < validRows.length; i += CHUNK_CEK) {
-        const batchNik = validRows.slice(i, i + CHUNK_CEK).map((v) => v.data.nik);
-        const existing = await prisma.warga.findMany({
-            where: { nik: { in: batchNik } },
-            select: { nik: true },
-        });
-        existing.forEach((w) => nikSudahAda.add(w.nik));
-    }
+        console.log(`[upload-warga] validasi selesai: ${validRows.length} valid, ${gagal.length} gagal (${Date.now() - t0}ms)`);
 
-    const toCreate = validRows.filter((v) => !nikSudahAda.has(v.data.nik));
-    const toUpdate = validRows.filter((v) => nikSudahAda.has(v.data.nik));
-
-    let inserted = 0;
-    const CHUNK_INSERT = 1000;
-    for (let i = 0; i < toCreate.length; i += CHUNK_INSERT) {
-        const batch = toCreate.slice(i, i + CHUNK_INSERT);
-        try {
-            const result = await prisma.warga.createMany({
-                data: batch.map((v) => ({ ...v.data, createdById: req.user.id })),
-                skipDuplicates: true,
+        const CHUNK_CEK = 2000;
+        const nikSudahAda = new Set();
+        for (let i = 0; i < validRows.length; i += CHUNK_CEK) {
+            const batchNik = validRows.slice(i, i + CHUNK_CEK).map((v) => v.data.nik);
+            const existing = await prisma.warga.findMany({
+                where: { nik: { in: batchNik } },
+                select: { nik: true },
             });
-            inserted += result.count;
-        } catch (err) {
-            console.error("BULK INSERT WARGA ERROR:", err);
-            batch.forEach((v) => gagal.push({ baris: v.nomorBaris, alasan: "Gagal menyimpan (batch insert)" }));
+            existing.forEach((w) => nikSudahAda.add(w.nik));
         }
-    }
 
-    let updated = 0;
-    for (const v of toUpdate) {
-        try {
-            await prisma.warga.update({
-                where: { nik: v.data.nik },
-                data: { ...v.data, createdById: req.user.id },
-            });
-            updated += 1;
-        } catch (err) {
-            gagal.push({ baris: v.nomorBaris, alasan: "Gagal menyimpan ke database" });
+        console.log(`[upload-warga] cek existing selesai: ${nikSudahAda.size} sudah ada (${Date.now() - t0}ms)`);
+
+        const toCreate = validRows.filter((v) => !nikSudahAda.has(v.data.nik));
+        const toUpdate = validRows.filter((v) => nikSudahAda.has(v.data.nik));
+
+        let inserted = 0;
+        const CHUNK_INSERT = 1000;
+        for (let i = 0; i < toCreate.length; i += CHUNK_INSERT) {
+            const batch = toCreate.slice(i, i + CHUNK_INSERT);
+            try {
+                const result = await prisma.warga.createMany({
+                    data: batch.map((v) => ({ ...v.data, createdById: req.user.id })),
+                    skipDuplicates: true,
+                });
+                inserted += result.count;
+            } catch (err) {
+                console.error("BULK INSERT WARGA ERROR:", err);
+                batch.forEach((v) => gagal.push({ baris: v.nomorBaris, alasan: "Gagal menyimpan (batch insert)" }));
+            }
         }
-    }
 
-    return success(res, {
-        fileTersimpan: req.file.filename,
-        totalBaris: rows.length,
-        berhasilDitambahkan: inserted,
-        berhasilDiperbarui: updated,
-        gagal,
-    }, "Upload data warga selesai diproses");
+        console.log(`[upload-warga] insert selesai: ${inserted} baris (${Date.now() - t0}ms)`);
+
+        let updated = 0;
+        for (const v of toUpdate) {
+            try {
+                await prisma.warga.update({
+                    where: { nik: v.data.nik },
+                    data: { ...v.data, createdById: req.user.id },
+                });
+                updated += 1;
+            } catch (err) {
+                gagal.push({ baris: v.nomorBaris, alasan: "Gagal menyimpan ke database" });
+            }
+        }
+
+        console.log(`[upload-warga] SELESAI: +${inserted} update${updated} (${Date.now() - t0}ms)`);
+
+        clearInterval(heartbeat);
+        res.end(JSON.stringify({
+            success: true,
+            message: "Upload data warga selesai diproses",
+            data: {
+                fileTersimpan: req.file.filename,
+                totalBaris: rows.length,
+                berhasilDitambahkan: inserted,
+                berhasilDiperbarui: updated,
+                gagal,
+            },
+        }));
+    } catch (err) {
+        console.error("UPLOAD WARGA FATAL ERROR:", err);
+        clearInterval(heartbeat);
+        res.end(JSON.stringify({
+            success: false,
+            message: err.message || "Terjadi kesalahan tak terduga saat memproses file",
+        }));
+    }
 }
 
 export async function getDaftarProgramBansos(req, res) {
