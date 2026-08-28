@@ -4,7 +4,9 @@ import XLSX from "xlsx";
 import prisma from "../lib/prisma.js";
 import { success, error } from "../utils/response.js";
 import { mapExcelRowToWarga } from "../utils/wargaMapper.js";
+import { mapExcelRowToBansos } from "../utils/bansosMapper.js";
 import { isAktifWhere, buildSebaranPerDesil } from "../utils/wargaStats.js";
+import { BANSOS_PROGRAMS, getBansosProgramBySlug } from "../constants/bansosPrograms.js";
 import {
     STATUS_PENGUSULAN_UPDATE_VALID,
     formatRingkasanPengusulan,
@@ -18,27 +20,12 @@ export async function getDashboardStats(req, res) {
     const [
         totalWarga,
         disabilitasCount,
-        pbiJkCount,
-        pkhCount,
-        sembakoCount,
-        penerimaAktifCount,
         lansiaCount,
         desilGroups,
+        bansosCounts,
     ] = await Promise.all([
         prisma.warga.count(),
         prisma.warga.count({ where: isAktifWhere("disabilitas") }),
-        prisma.warga.count({ where: isAktifWhere("pbiJk") }),
-        prisma.warga.count({ where: isAktifWhere("bansosPkh") }),
-        prisma.warga.count({ where: isAktifWhere("bansosSembako") }),
-        prisma.warga.count({
-            where: {
-                OR: [
-                    isAktifWhere("pbiJk"),
-                    isAktifWhere("bansosPkh"),
-                    isAktifWhere("bansosSembako"),
-                ],
-            },
-        }),
         prisma.warga.count({
             where: { tanggalLahir: { lte: usia60TahunLalu } },
         }),
@@ -46,21 +33,30 @@ export async function getDashboardStats(req, res) {
             by: ["desilTerbaru"],
             _count: { _all: true },
         }),
+        Promise.all(
+            BANSOS_PROGRAMS.map(async (program) => ({
+                bidang: program.bidang,
+                jumlah: await prisma[program.model].count(),
+            }))
+        ),
     ]);
 
     const sebaranPerDesil = buildSebaranPerDesil(desilGroups);
 
+    const bansosPerBidang = {};
+    let totalPenyaluranBansos = 0;
+    for (const { bidang, jumlah } of bansosCounts) {
+        bansosPerBidang[bidang] = (bansosPerBidang[bidang] || 0) + jumlah;
+        totalPenyaluranBansos += jumlah;
+    }
+
     return success(res, {
         totalWarga,
-        penerimaBantuanAktif: penerimaAktifCount,
         jumlahLansia: lansiaCount,
         penyandangDisabilitas: disabilitasCount,
         sebaranPerDesil,
-        statusBantuanSosial: [
-            { program: "PBI-JK", jumlah: pbiJkCount },
-            { program: "PKH", jumlah: pkhCount },
-            { program: "Sembako", jumlah: sembakoCount },
-        ],
+        totalPenyaluranBansos,
+        bansosPerBidang: Object.entries(bansosPerBidang).map(([bidang, jumlah]) => ({ bidang, jumlah })),
     });
 }
 
@@ -101,9 +97,6 @@ export async function getListWarga(req, res) {
                 kecamatan: true,
                 desaKelurahan: true,
                 desilTerbaru: true,
-                pbiJk: true,
-                bansosPkh: true,
-                bansosSembako: true,
                 updatedAt: true,
             },
         }),
@@ -188,6 +181,139 @@ export async function uploadWargaExcel(req, res) {
         berhasilDiperbarui: updated,
         gagal,
     }, "Upload data warga selesai diproses");
+}
+
+export async function getDaftarProgramBansos(req, res) {
+    return success(res, BANSOS_PROGRAMS.map(({ slug, nama, bidang }) => ({ slug, nama, bidang })));
+}
+
+export async function uploadBansosExcel(req, res) {
+    const program = getBansosProgramBySlug(req.params.slug);
+
+    if (!program) {
+        return error(res, "Program bansos tidak dikenali", 404);
+    }
+
+    if (!req.file) {
+        return error(res, "File Excel wajib diupload", 400);
+    }
+
+    const delegate = prisma[program.model];
+
+    let rows;
+    try {
+        const fileBuffer = fs.readFileSync(req.file.path);
+        const workbook = XLSX.read(fileBuffer, { type: "buffer", cellDates: true });
+        const firstSheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[firstSheetName];
+        rows = XLSX.utils.sheet_to_json(sheet, { defval: null });
+    } catch (err) {
+        console.error("XLSX READ ERROR:", err);
+        return error(res, "Gagal membaca file Excel, pastikan formatnya benar", 400, err.message);
+    }
+
+    if (!rows || rows.length === 0) {
+        return error(res, "File Excel kosong atau tidak ada baris data", 400);
+    }
+
+    let inserted = 0;
+    let updated = 0;
+    const gagal = [];
+
+    for (let i = 0; i < rows.length; i++) {
+        const nomorBaris = i + 2;
+        const { valid, data } = mapExcelRowToBansos(rows[i]);
+
+        if (!valid) {
+            gagal.push({ baris: nomorBaris, alasan: "NIK kosong atau tidak valid (harus 16 digit)" });
+            continue;
+        }
+
+        try {
+            const existing = await delegate.findUnique({
+                where: {
+                    nik_tahunBantuan: {
+                        nik: data.nik,
+                        tahunBantuan: data.tahunBantuan,
+                    },
+                },
+                select: { id: true },
+            });
+
+            if (existing) {
+                await delegate.update({
+                    where: { id: existing.id },
+                    data: { ...data, createdById: req.user.id },
+                });
+                updated += 1;
+            } else {
+                await delegate.create({
+                    data: { ...data, createdById: req.user.id },
+                });
+                inserted += 1;
+            }
+        } catch (err) {
+            gagal.push({ baris: nomorBaris, alasan: "Gagal menyimpan ke database" });
+        }
+    }
+
+    return success(res, {
+        program: program.nama,
+        fileTersimpan: req.file.filename,
+        totalBaris: rows.length,
+        berhasilDitambahkan: inserted,
+        berhasilDiperbarui: updated,
+        gagal,
+    }, `Upload data ${program.nama} selesai diproses`);
+}
+
+export async function getListBansosPenerima(req, res) {
+    const program = getBansosProgramBySlug(req.params.slug);
+
+    if (!program) {
+        return error(res, "Program bansos tidak dikenali", 404);
+    }
+
+    const delegate = prisma[program.model];
+    const { search = "", page = 1, limit = 10 } = req.query;
+
+    const pageNum = Math.max(parseInt(page, 10) || 1, 1);
+    const limitNum = Math.max(parseInt(limit, 10) || 10, 1);
+    const skip = (pageNum - 1) * limitNum;
+
+    const keyword = String(search).trim();
+
+    const where = keyword
+        ? {
+            OR: [
+                { nama: { contains: keyword } },
+                { nik: { contains: keyword } },
+                { kabupaten: { contains: keyword } },
+                { desaKelurahan: { contains: keyword } },
+            ],
+        }
+        : {};
+
+    const [total, data] = await Promise.all([
+        delegate.count({ where }),
+        delegate.findMany({
+            where,
+            orderBy: { updatedAt: "desc" },
+            skip,
+            take: limitNum,
+        }),
+    ]);
+
+    return success(res, {
+        program: program.nama,
+        data,
+        pagination: {
+            total,
+            page: pageNum,
+            limit: limitNum,
+            totalPages: Math.max(Math.ceil(total / limitNum), 1),
+        },
+    });
 }
 
 export async function updateAccountSettings(req, res) {

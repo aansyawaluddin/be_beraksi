@@ -48,10 +48,12 @@ model User {
 
 model Warga {
   id                        String        @id @default(uuid())
+  provinsi                  String?
   kabupaten                 String
   kecamatan                 String
   desaKelurahan             String
   alamat                    String?       @db.Text
+  dusun                     String?
   rw                        String?
   rt                        String?
   desilTerbaru              String?
@@ -60,15 +62,12 @@ model Warga {
   nama                      String
   jenisKelamin              JenisKelamin?
   tanggalLahir              DateTime?
-  tempatLahir               String?
+  umur                      Int?
   statusPerkawinan          String?
   hubunganKeluarga          String?
-  keberadaanAnggotaKeluarga String?
+  lanjutUsia                String?
   disabilitas               String?
   keteranganDisabilitas     String?
-  pbiJk                     String?
-  bansosPkh                 String?
-  bansosSembako             String?
 
   createdById               String?
   createdBy                 User?         @relation(fields: [createdById], references: [id])
@@ -127,4 +126,236 @@ model Pengusulan {
   @@index([status])
   @@index([programId])
   @@map("pengusulan")
+}
+
+// --- Bidang: Fakir Miskin ---
+
+model BansosUepSajuta {
+  id            String   @id @default(uuid())
+  nik           String
+  nama          String?
+  kabupaten     String?
+  desaKelurahan String?
+  tahunBantuan  Int?
+  createdById   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([nik, tahunBantuan])
+  @@index([nik])
+  @@map("bansos_uep_sajuta")
+}
+
+model BansosUepPotendeLima {
+  id            String   @id @default(uuid())
+  nik           String
+  nama          String?
+  kabupaten     String?
+  desaKelurahan String?
+  tahunBantuan  Int?
+  createdById   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([nik, tahunBantuan])
+  @@index([nik])
+  @@map("bansos_uep_potende_lima")
+}
+
+model BansosUepPotendeSapuluh {
+  id            String   @id @default(uuid())
+  nik           String
+  nama          String?
+  kabupaten     String?
+  desaKelurahan String?
+  tahunBantuan  Int?
+  createdById   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([nik, tahunBantuan])
+  @@index([nik])
+  @@map("bansos_uep_potende_sapuluh")
+}
+
+model BansosKube {
+  id            String   @id @default(uuid())
+  nik           String
+  nama          String?
+  kabupaten     String?
+  desaKelurahan String?
+  tahunBantuan  Int?
+  createdById   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([nik, tahunBantuan])
+  @@index([nik])
+  @@map("bansos_kube")
+}
+
+model BansosBantuanTunai {
+  id            String   @id @default(uuid())
+  nik           String
+  nama          String?
+  kabupaten     String?
+  desaKelurahan String?
+  tahunBantuan  Int?
+  createdById   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([nik, tahunBantuan])
+  @@index([nik])
+  @@map("bansos_bantuan_tunai")
+}
+
+// --- Bidang: Linjamsos ---
+
+model BansosPanganStunting {
+  id            String   @id @default(uuid())
+  nik           String
+  nama          String?
+  kabupaten     String?
+  desaKelurahan String?
+  tahunBantuan  Int?
+  createdById   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([nik, tahunBantuan])
+  @@index([nik])
+  @@map("bansos_pangan_stunting")
+}
+
+model BansosRst {
+  id            String   @id @default(uuid())
+  nik           String
+  nama          String?
+  kabupaten     String?
+  desaKelurahan String?
+  tahunBantuan  Int?
+  createdById   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([nik, tahunBantuan])
+  @@index([nik])
+  @@map("bansos_rst")
+}
+
+// --- Bidang: Rehsos ---
+
+model BansosBantalanLansia {
+  id            String   @id @default(uuid())
+  nik           String
+  nama          String?
+  kabupaten     String?
+  desaKelurahan String?
+  tahunBantuan  Int?
+  createdById   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([nik, tahunBantuan])
+  @@index([nik])
+  @@map("bansos_bantalan_lansia")
+}
+
+model BansosAlatBantuLansia {
+  id            String   @id @default(uuid())
+  nik           String
+  nama          String?
+  kabupaten     String?
+  desaKelurahan String?
+  tahunBantuan  Int?
+  createdById   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([nik, tahunBantuan])
+  @@index([nik])
+  @@map("bansos_alat_bantu_lansia")
+}
+
+model BansosAlatBantuDisabilitas {
+  id            String   @id @default(uuid())
+  nik           String
+  nama          String?
+  kabupaten     String?
+  desaKelurahan String?
+  tahunBantuan  Int?
+  createdById   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([nik, tahunBantuan])
+  @@index([nik])
+  @@map("bansos_alat_bantu_disabilitas")
+}
+
+model BansosPanadaLansia {
+  id            String   @id @default(uuid())
+  nik           String
+  nama          String?
+  kabupaten     String?
+  desaKelurahan String?
+  tahunBantuan  Int?
+  createdById   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([nik, tahunBantuan])
+  @@index([nik])
+  @@map("bansos_panada_lansia")
+}
+
+model BansosPanadaDisabilitas {
+  id            String   @id @default(uuid())
+  nik           String
+  nama          String?
+  kabupaten     String?
+  desaKelurahan String?
+  tahunBantuan  Int?
+  createdById   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([nik, tahunBantuan])
+  @@index([nik])
+  @@map("bansos_panada_disabilitas")
+}
+
+model BansosUepBwblp {
+  id            String   @id @default(uuid())
+  nik           String
+  nama          String?
+  kabupaten     String?
+  desaKelurahan String?
+  tahunBantuan  Int?
+  createdById   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([nik, tahunBantuan])
+  @@index([nik])
+  @@map("bansos_uep_bwblp")
+}
+
+// --- Bidang: Dayasos ---
+
+model BansosUepKeluargaPlasma {
+  id            String   @id @default(uuid())
+  nik           String
+  nama          String?
+  kabupaten     String?
+  desaKelurahan String?
+  tahunBantuan  Int?
+  createdById   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([nik, tahunBantuan])
+  @@index([nik])
+  @@map("bansos_uep_keluarga_plasma")
 }

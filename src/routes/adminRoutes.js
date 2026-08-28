@@ -3,6 +3,9 @@ import {
     getDashboardStats,
     getListWarga,
     uploadWargaExcel,
+    getDaftarProgramBansos,
+    uploadBansosExcel,
+    getListBansosPenerima,
     updateAccountSettings,
     getListPengusulan,
     getDetailPengusulan,
@@ -22,8 +25,13 @@ router.get("/dashboard/stats", asyncHandler(getDashboardStats));
 // Data warga (read-only)
 router.get("/warga", asyncHandler(getListWarga));
 
-// Upload excel data warga
+// Upload excel data warga (BNBA)
 router.post("/warga/upload", upload.single("file"), asyncHandler(uploadWargaExcel));
+
+// Data bansos per program
+router.get("/bansos/programs", asyncHandler(getDaftarProgramBansos));
+router.get("/bansos/:slug", asyncHandler(getListBansosPenerima));
+router.post("/bansos/:slug/upload", upload.single("file"), asyncHandler(uploadBansosExcel));
 
 // Pengusulan bantuan sosial
 router.get("/pengusulan", asyncHandler(getListPengusulan));

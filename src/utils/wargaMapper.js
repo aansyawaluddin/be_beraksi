@@ -7,27 +7,40 @@ function normalizeHeader(header) {
 }
 
 const HEADER_TO_FIELD = {
+    provinsi: "provinsi",
+    "provinsi ktp": "provinsi",
     kabupaten: "kabupaten",
+    "kabupaten ktp": "kabupaten",
+    "kabupaten kota ktp": "kabupaten",
     kecamatan: "kecamatan",
+    "kecamatan ktp": "kecamatan",
     "desa kelurahan": "desaKelurahan",
+    "kelurahan desa": "desaKelurahan",
+    "kelurahan desa ktp": "desaKelurahan",
     alamat: "alamat",
+    "alamat ktp": "alamat",
+    dusun: "dusun",
+    "dusun ktp": "dusun",
     rw: "rw",
+    "rw ktp": "rw",
     rt: "rt",
+    "rt ktp": "rt",
+    desil: "desilTerbaru",
     "desil terbaru": "desilTerbaru",
     "nomor kartu keluarga": "nomorKK",
     "nomor induk kependudukan": "nik",
     nama: "nama",
     "jenis kelamin": "jenisKelaminRaw",
     "tanggal lahir": "tanggalLahirRaw",
-    "tempat lahir": "tempatLahir",
+    umur: "umurRaw",
     "status perkawinan": "statusPerkawinan",
+    "status kawin": "statusPerkawinan",
     "hubungan keluarga": "hubunganKeluarga",
-    "keberadaan anggota keluarga": "keberadaanAnggotaKeluarga",
+    "status hubungan keluarga": "hubunganKeluarga",
+    "lanjut usia": "lanjutUsia",
     disabilitas: "disabilitas",
+    "jenis disabilitas": "disabilitas",
     "keterangan disabilitas": "keteranganDisabilitas",
-    "pbi jk": "pbiJk",
-    "bansos pkh": "bansosPkh",
-    "bansos sembako": "bansosSembako",
 };
 
 function normalizeJenisKelamin(value) {
@@ -60,13 +73,24 @@ function cleanString(value) {
     return str === "" ? null : str;
 }
 
+function parseUmur(value) {
+    if (value === null || value === undefined || value === "") return null;
+    const n = parseInt(value, 10);
+    return Number.isNaN(n) ? null : n;
+}
+
+function fieldOrUndefined(mapped, key, transform = cleanString) {
+    if (!(key in mapped)) return undefined;
+    return transform(mapped[key]);
+}
+
 export function mapExcelRowToWarga(row) {
     const mapped = {};
 
     for (const [rawHeader, rawValue] of Object.entries(row)) {
         const key = normalizeHeader(rawHeader);
         const field = HEADER_TO_FIELD[key];
-        if (!field) continue; 
+        if (!field) continue;
         mapped[field] = rawValue;
     }
 
@@ -77,27 +101,26 @@ export function mapExcelRowToWarga(row) {
     return {
         valid: Boolean(nik && nomorKK && nama),
         data: {
+            provinsi: fieldOrUndefined(mapped, "provinsi"),
             kabupaten: cleanString(mapped.kabupaten),
             kecamatan: cleanString(mapped.kecamatan),
             desaKelurahan: cleanString(mapped.desaKelurahan),
-            alamat: cleanString(mapped.alamat),
-            rw: cleanString(mapped.rw),
-            rt: cleanString(mapped.rt),
-            desilTerbaru: cleanString(mapped.desilTerbaru),
+            alamat: fieldOrUndefined(mapped, "alamat"),
+            dusun: fieldOrUndefined(mapped, "dusun"),
+            rw: fieldOrUndefined(mapped, "rw"),
+            rt: fieldOrUndefined(mapped, "rt"),
+            desilTerbaru: fieldOrUndefined(mapped, "desilTerbaru"),
             nomorKK,
             nik,
             nama,
-            jenisKelamin: normalizeJenisKelamin(mapped.jenisKelaminRaw),
-            tanggalLahir: parseTanggalLahir(mapped.tanggalLahirRaw),
-            tempatLahir: cleanString(mapped.tempatLahir),
-            statusPerkawinan: cleanString(mapped.statusPerkawinan),
-            hubunganKeluarga: cleanString(mapped.hubunganKeluarga),
-            keberadaanAnggotaKeluarga: cleanString(mapped.keberadaanAnggotaKeluarga),
-            disabilitas: cleanString(mapped.disabilitas),
-            keteranganDisabilitas: cleanString(mapped.keteranganDisabilitas),
-            pbiJk: cleanString(mapped.pbiJk),
-            bansosPkh: cleanString(mapped.bansosPkh),
-            bansosSembako: cleanString(mapped.bansosSembako),
+            jenisKelamin: fieldOrUndefined(mapped, "jenisKelaminRaw", normalizeJenisKelamin),
+            tanggalLahir: fieldOrUndefined(mapped, "tanggalLahirRaw", parseTanggalLahir),
+            umur: fieldOrUndefined(mapped, "umurRaw", parseUmur),
+            statusPerkawinan: fieldOrUndefined(mapped, "statusPerkawinan"),
+            hubunganKeluarga: fieldOrUndefined(mapped, "hubunganKeluarga"),
+            lanjutUsia: fieldOrUndefined(mapped, "lanjutUsia"),
+            disabilitas: fieldOrUndefined(mapped, "disabilitas"),
+            keteranganDisabilitas: fieldOrUndefined(mapped, "keteranganDisabilitas"),
         },
     };
 }

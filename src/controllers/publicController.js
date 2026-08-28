@@ -3,12 +3,36 @@ import path from "path";
 import prisma from "../lib/prisma.js";
 import { success, error } from "../utils/response.js";
 import { UPLOAD_ROOT_PENGUSULAN } from "../utils/uploadPaths.js";
+import { BANSOS_PROGRAMS } from "../constants/bansosPrograms.js";
 import {
-    isNilaiAktif,
     getDesilDeskripsi,
     parseDesil,
     maskNik,
 } from "../utils/statusBantuan.js";
+
+async function cariBansosDiterima(nik) {
+    const hasil = await Promise.all(
+        BANSOS_PROGRAMS.map(async (program) => {
+            try {
+                const rows = await prisma[program.model].findMany({
+                    where: { nik },
+                    select: { tahunBantuan: true },
+                    orderBy: { tahunBantuan: "desc" },
+                });
+                return rows.map((row) => ({
+                    program: program.nama,
+                    bidang: program.bidang,
+                    tahunBantuan: row.tahunBantuan,
+                }));
+            } catch (err) {
+                console.error(`GAGAL CEK BANSOS (${program.slug}):`, err);
+                return [];
+            }
+        })
+    );
+
+    return hasil.flat();
+}
 
 const JENIS_PENGUSULAN_VALID = ["DIRI_SENDIRI", "ORANG_LAIN"];
 const JENIS_USULAN_VALID = ["INDIVIDU", "KELUARGA"];
@@ -34,9 +58,6 @@ export async function cekStatusByNik(req, res) {
             kabupaten: true,
             kecamatan: true,
             desilTerbaru: true,
-            pbiJk: true,
-            bansosPkh: true,
-            bansosSembako: true,
         },
     });
 
@@ -46,10 +67,7 @@ export async function cekStatusByNik(req, res) {
 
     const desil = parseDesil(warga.desilTerbaru);
 
-    const programAktif = [];
-    if (isNilaiAktif(warga.pbiJk)) programAktif.push("PBI-JK");
-    if (isNilaiAktif(warga.bansosPkh)) programAktif.push("PKH");
-    if (isNilaiAktif(warga.bansosSembako)) programAktif.push("Sembako");
+    const bansosDiterima = await cariBansosDiterima(nikBersih);
 
     return success(res, {
         nik: maskNik(warga.nik),
@@ -57,7 +75,7 @@ export async function cekStatusByNik(req, res) {
         lokasi: [warga.kecamatan, warga.kabupaten].filter(Boolean).join(", "),
         desil,
         desilDeskripsi: desil ? getDesilDeskripsi(desil) : null,
-        programAktif,
+        bansosDiterima,
     }, "Data ditemukan");
 }
 
@@ -170,7 +188,6 @@ export async function createPengusulan(req, res) {
         return error(res, "Hanya warga dengan posisi Desil 1-5 yang berhak diusulkan", 403);
     }
 
-    // Baru sampai sini semua valid -> tulis file ke folder per-NIK penerima
     const folderPenerima = path.join(UPLOAD_ROOT_PENGUSULAN, nikCalonPenerimaBersih);
     fs.mkdirSync(folderPenerima, { recursive: true });
 
