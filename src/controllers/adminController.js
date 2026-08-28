@@ -5,6 +5,7 @@ import prisma from "../lib/prisma.js";
 import { success, error } from "../utils/response.js";
 import { mapExcelRowToWarga } from "../utils/wargaMapper.js";
 import { mapExcelRowToBansos } from "../utils/bansosMapper.js";
+import { cariBansosDiterima } from "../utils/cariBansosDiterima.js";
 import { isAktifWhere, buildSebaranPerDesil } from "../utils/wargaStats.js";
 import { BANSOS_PROGRAMS, getBansosProgramBySlug } from "../constants/bansosPrograms.js";
 import {
@@ -110,6 +111,53 @@ export async function getListWarga(req, res) {
             limit: limitNum,
             totalPages: Math.max(Math.ceil(total / limitNum), 1),
         },
+    });
+}
+
+export async function getDetailWarga(req, res) {
+    const { id } = req.params;
+    const idNum = parseInt(id, 10);
+
+    if (Number.isNaN(idNum)) {
+        return error(res, "ID warga tidak valid", 400);
+    }
+
+    const warga = await prisma.warga.findUnique({
+        where: { id: idNum },
+        select: {
+            id: true,
+            nama: true,
+            nik: true,
+            nomorKK: true,
+            provinsi: true,
+            kabupaten: true,
+            kecamatan: true,
+            desaKelurahan: true,
+            alamat: true,
+            dusun: true,
+            rw: true,
+            rt: true,
+            desilTerbaru: true,
+            jenisKelamin: true,
+            tanggalLahir: true,
+            umur: true,
+            statusPerkawinan: true,
+            hubunganKeluarga: true,
+            lanjutUsia: true,
+            disabilitas: true,
+            keteranganDisabilitas: true,
+        },
+    });
+
+    if (!warga) {
+        return error(res, "Data warga tidak ditemukan", 404);
+    }
+
+    const bansosDiterima = await cariBansosDiterima(warga.nik);
+
+    return success(res, {
+        ...warga,
+        bansosDiterima,
     });
 }
 

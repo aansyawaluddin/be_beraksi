@@ -3,36 +3,12 @@ import path from "path";
 import prisma from "../lib/prisma.js";
 import { success, error } from "../utils/response.js";
 import { UPLOAD_ROOT_PENGUSULAN } from "../utils/uploadPaths.js";
-import { BANSOS_PROGRAMS } from "../constants/bansosPrograms.js";
+import { cariBansosDiterima } from "../utils/cariBansosDiterima.js";
 import {
     getDesilDeskripsi,
     parseDesil,
     maskNik,
 } from "../utils/statusBantuan.js";
-
-async function cariBansosDiterima(nik) {
-    const hasil = await Promise.all(
-        BANSOS_PROGRAMS.map(async (program) => {
-            try {
-                const rows = await prisma[program.model].findMany({
-                    where: { nik },
-                    select: { tahunBantuan: true },
-                    orderBy: { tahunBantuan: "desc" },
-                });
-                return rows.map((row) => ({
-                    program: program.nama,
-                    bidang: program.bidang,
-                    tahunBantuan: row.tahunBantuan,
-                }));
-            } catch (err) {
-                console.error(`GAGAL CEK BANSOS (${program.slug}):`, err);
-                return [];
-            }
-        })
-    );
-
-    return hasil.flat();
-}
 
 const JENIS_PENGUSULAN_VALID = ["DIRI_SENDIRI", "ORANG_LAIN"];
 const JENIS_USULAN_VALID = ["INDIVIDU", "KELUARGA"];

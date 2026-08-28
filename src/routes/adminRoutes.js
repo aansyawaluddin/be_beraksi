@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
     getDashboardStats,
     getListWarga,
+    getDetailWarga,
     uploadWargaExcel,
     getDaftarProgramBansos,
     uploadBansosExcel,
@@ -24,6 +25,7 @@ router.get("/dashboard/stats", asyncHandler(getDashboardStats));
 
 // Data warga (read-only)
 router.get("/warga", asyncHandler(getListWarga));
+router.get("/warga/:id", asyncHandler(getDetailWarga));
 
 // Upload excel data warga (BNBA)
 router.post("/warga/upload", upload.single("file"), asyncHandler(uploadWargaExcel));
