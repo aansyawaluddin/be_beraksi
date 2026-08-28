@@ -135,42 +135,67 @@ export async function uploadWargaExcel(req, res) {
         return error(res, "File Excel kosong atau tidak ada baris data", 400);
     }
 
-    let inserted = 0;
-    let updated = 0;
     const gagal = [];
+
+    const validRows = [];
+    const nikTerlihat = new Set();
 
     for (let i = 0; i < rows.length; i++) {
         const nomorBaris = i + 2;
         const { valid, data } = mapExcelRowToWarga(rows[i]);
 
         if (!valid) {
-            gagal.push({
-                baris: nomorBaris,
-                alasan: "NIK, Nomor KK, atau Nama kosong/tidak valid",
-            });
+            gagal.push({ baris: nomorBaris, alasan: "NIK, Nomor KK, atau Nama kosong/tidak valid" });
             continue;
         }
+        if (nikTerlihat.has(data.nik)) {
+            gagal.push({ baris: nomorBaris, alasan: `NIK ${data.nik} duplikat di dalam file ini` });
+            continue;
+        }
+        nikTerlihat.add(data.nik);
+        validRows.push({ nomorBaris, data });
+    }
 
+    const CHUNK_CEK = 2000;
+    const nikSudahAda = new Set();
+    for (let i = 0; i < validRows.length; i += CHUNK_CEK) {
+        const batchNik = validRows.slice(i, i + CHUNK_CEK).map((v) => v.data.nik);
+        const existing = await prisma.warga.findMany({
+            where: { nik: { in: batchNik } },
+            select: { nik: true },
+        });
+        existing.forEach((w) => nikSudahAda.add(w.nik));
+    }
+
+    const toCreate = validRows.filter((v) => !nikSudahAda.has(v.data.nik));
+    const toUpdate = validRows.filter((v) => nikSudahAda.has(v.data.nik));
+
+    let inserted = 0;
+    const CHUNK_INSERT = 1000;
+    for (let i = 0; i < toCreate.length; i += CHUNK_INSERT) {
+        const batch = toCreate.slice(i, i + CHUNK_INSERT);
         try {
-            const existing = await prisma.warga.findUnique({
-                where: { nik: data.nik },
-                select: { id: true },
+            const result = await prisma.warga.createMany({
+                data: batch.map((v) => ({ ...v.data, createdById: req.user.id })),
+                skipDuplicates: true,
             });
-
-            if (existing) {
-                await prisma.warga.update({
-                    where: { nik: data.nik },
-                    data: { ...data, createdById: req.user.id },
-                });
-                updated += 1;
-            } else {
-                await prisma.warga.create({
-                    data: { ...data, createdById: req.user.id },
-                });
-                inserted += 1;
-            }
+            inserted += result.count;
         } catch (err) {
-            gagal.push({ baris: nomorBaris, alasan: "Gagal menyimpan ke database" });
+            console.error("BULK INSERT WARGA ERROR:", err);
+            batch.forEach((v) => gagal.push({ baris: v.nomorBaris, alasan: "Gagal menyimpan (batch insert)" }));
+        }
+    }
+
+    let updated = 0;
+    for (const v of toUpdate) {
+        try {
+            await prisma.warga.update({
+                where: { nik: v.data.nik },
+                data: { ...v.data, createdById: req.user.id },
+            });
+            updated += 1;
+        } catch (err) {
+            gagal.push({ baris: v.nomorBaris, alasan: "Gagal menyimpan ke database" });
         }
     }
 
