@@ -98,8 +98,26 @@ export function mapExcelRowToWarga(row) {
     const nomorKK = cleanString(mapped.nomorKK);
     const nama = cleanString(mapped.nama);
 
+    const alasan = [];
+    if (!nik) {
+        alasan.push("NIK kosong");
+    } else if (!/^\d{16}$/.test(nik)) {
+        alasan.push("NIK tidak valid (harus 16 digit)");
+    }
+
+    if (!nomorKK) {
+        alasan.push("Nomor KK kosong");
+    } else if (!/^\d{16}$/.test(nomorKK)) {
+        alasan.push("Nomor KK tidak valid (harus 16 digit)");
+    }
+
+    if (!nama) {
+        alasan.push("Nama kosong");
+    }
+
     return {
-        valid: Boolean(nik && nomorKK && nama),
+        valid: alasan.length === 0,
+        alasan: alasan.join(", "),
         data: {
             provinsi: fieldOrUndefined(mapped, "provinsi"),
             kabupaten: cleanString(mapped.kabupaten),

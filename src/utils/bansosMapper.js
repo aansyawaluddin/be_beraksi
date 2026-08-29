@@ -43,8 +43,16 @@ export function mapExcelRowToBansos(row) {
 
     const nik = cleanString(mapped.nik);
 
+    let alasan = "";
+    if (!nik) {
+        alasan = "NIK kosong";
+    } else if (!/^\d{16}$/.test(nik)) {
+        alasan = "NIK tidak valid (harus 16 digit)";
+    }
+
     return {
-        valid: Boolean(nik && /^\d{16}$/.test(nik)),
+        valid: alasan === "",
+        alasan,
         data: {
             nik,
             nama: cleanString(mapped.nama),

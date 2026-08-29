@@ -203,10 +203,10 @@ export async function uploadWargaExcel(req, res) {
 
         for (let i = 0; i < rows.length; i++) {
             const nomorBaris = i + 2;
-            const { valid, data } = mapExcelRowToWarga(rows[i]);
+            const { valid, alasan, data } = mapExcelRowToWarga(rows[i]);
 
             if (!valid) {
-                gagal.push({ baris: nomorBaris, alasan: "NIK, Nomor KK, atau Nama kosong/tidak valid" });
+                gagal.push({ baris: nomorBaris, alasan });
                 continue;
             }
             if (nikTerlihat.has(data.nik)) {
@@ -340,10 +340,10 @@ export async function uploadBansosExcel(req, res) {
 
         for (let i = 0; i < rows.length; i++) {
             const nomorBaris = i + 2;
-            const { valid, data } = mapExcelRowToBansos(rows[i]);
+            const { valid, alasan, data } = mapExcelRowToBansos(rows[i]);
 
             if (!valid) {
-                gagal.push({ baris: nomorBaris, alasan: "NIK kosong atau tidak valid (harus 16 digit)" });
+                gagal.push({ baris: nomorBaris, alasan });
                 continue;
             }
             const k = kunci(data.nik, data.tahunBantuan);
