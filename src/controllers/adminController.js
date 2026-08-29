@@ -6,6 +6,9 @@ import { success, error } from "../utils/response.js";
 import { mapExcelRowToWarga } from "../utils/wargaMapper.js";
 import { mapExcelRowToBansos } from "../utils/bansosMapper.js";
 import { cariBansosDiterima } from "../utils/cariBansosDiterima.js";
+import { WILAYAH_SULTENG } from "../constants/wilayahSulteng.js";
+import { cocokkanWilayah } from "../utils/wilayahMatcher.js";
+import { parseDesil } from "../utils/statusBantuan.js";
 import { isAktifWhere, buildSebaranPerDesil } from "../utils/wargaStats.js";
 import { BANSOS_PROGRAMS, getBansosProgramBySlug } from "../constants/bansosPrograms.js";
 import {
@@ -631,4 +634,99 @@ export async function updateStatusPengusulan(req, res) {
         : "Pengusulan berhasil ditolak";
 
     return success(res, updated, pesan);
+}
+
+const CHUNK_CEK_GIS = 2000;
+
+async function hitungRingkasanGisPerWilayah() {
+    const hasilPerProgram = await Promise.all(
+        BANSOS_PROGRAMS.map((program) =>
+            prisma[program.model].findMany({
+                select: { nik: true, kabupaten: true },
+                distinct: ["nik"],
+                orderBy: { updatedAt: "desc" },
+            })
+        )
+    );
+
+    const nikPerWilayah = new Map();
+    const nikTanpaWilayah = new Set();
+
+    for (const rows of hasilPerProgram) {
+        for (const { nik, kabupaten } of rows) {
+            if (!nik) continue;
+            const wilayah = cocokkanWilayah(kabupaten);
+            if (!wilayah) {
+                nikTanpaWilayah.add(nik);
+                continue;
+            }
+            if (!nikPerWilayah.has(wilayah.key)) nikPerWilayah.set(wilayah.key, new Set());
+            nikPerWilayah.get(wilayah.key).add(nik);
+        }
+    }
+
+    const semuaNik = Array.from(
+        new Set(Array.from(nikPerWilayah.values()).flatMap((set) => Array.from(set)))
+    );
+
+    const desilPerNik = new Map();
+    for (let i = 0; i < semuaNik.length; i += CHUNK_CEK_GIS) {
+        const batch = semuaNik.slice(i, i + CHUNK_CEK_GIS);
+        const wargaBatch = await prisma.warga.findMany({
+            where: { nik: { in: batch } },
+            select: { nik: true, desilTerbaru: true },
+        });
+        wargaBatch.forEach((w) => desilPerNik.set(w.nik, parseDesil(w.desilTerbaru)));
+    }
+
+    const wilayah = WILAYAH_SULTENG.map((w) => {
+        const nikSet = nikPerWilayah.get(w.key) || new Set();
+        const jumlahPenerima = nikSet.size;
+
+        const nilaiDesil = Array.from(nikSet)
+            .map((nik) => desilPerNik.get(nik))
+            .filter((d) => d !== null && d !== undefined && d >= 1 && d <= 10);
+
+        const rataRataDesil = nilaiDesil.length > 0
+            ? Math.round((nilaiDesil.reduce((a, b) => a + b, 0) / nilaiDesil.length) * 10) / 10
+            : null;
+
+        return {
+            kabupaten: w.nama,
+            jumlahPenerima,
+            rataRataDesil,
+        };
+    });
+
+    return { wilayah, tidakDikenali: nikTanpaWilayah.size };
+}
+
+export async function getGisPeta(req, res) {
+    const { wilayah, tidakDikenali } = await hitungRingkasanGisPerWilayah();
+
+    const peta = wilayah.map(({ kabupaten, jumlahPenerima }) => ({
+        kabupaten,
+        jumlahPenerima,
+    }));
+
+    const rataRataDesilPerWilayah = wilayah.map(({ kabupaten, rataRataDesil }) => ({
+        kabupaten,
+        rataRataDesil,
+    }));
+
+    const tabel = wilayah.map(({ kabupaten, jumlahPenerima, rataRataDesil }) => ({
+        kabupaten,
+        jumlahPenerima,
+        rataRataDesil,
+    }));
+
+    const totalPenerima = wilayah.reduce((total, w) => total + w.jumlahPenerima, 0);
+
+    return success(res, {
+        totalPenerima,
+        peta,
+        rataRataDesilPerWilayah,
+        tabel,
+        ...(tidakDikenali > 0 ? { dataTanpaWilayahDikenali: tidakDikenali } : {}),
+    });
 }

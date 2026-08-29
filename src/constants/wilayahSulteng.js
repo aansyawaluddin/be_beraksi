@@ -1,0 +1,15 @@
+export const WILAYAH_SULTENG = [
+    { key: "PALU", nama: "Kota Palu", aliases: ["PALU", "KOTA PALU"] },
+    { key: "BANGGAI", nama: "Kabupaten Banggai", aliases: ["BANGGAI"] },
+    { key: "BANGGAI_KEPULAUAN", nama: "Kabupaten Banggai Kepulauan", aliases: ["BANGGAI KEPULAUAN", "BANGGAI KEP"] },
+    { key: "BANGGAI_LAUT", nama: "Kabupaten Banggai Laut", aliases: ["BANGGAI LAUT"] },
+    { key: "BUOL", nama: "Kabupaten Buol", aliases: ["BUOL"] },
+    { key: "DONGGALA", nama: "Kabupaten Donggala", aliases: ["DONGGALA"] },
+    { key: "MOROWALI", nama: "Kabupaten Morowali", aliases: ["MOROWALI"] },
+    { key: "MOROWALI_UTARA", nama: "Kabupaten Morowali Utara", aliases: ["MOROWALI UTARA", "MOROWALI UTR"] },
+    { key: "PARIGI_MOUTONG", nama: "Kabupaten Parigi Moutong", aliases: ["PARIGI MOUTONG", "PARIMO"] },
+    { key: "POSO", nama: "Kabupaten Poso", aliases: ["POSO"] },
+    { key: "SIGI", nama: "Kabupaten Sigi", aliases: ["SIGI"] },
+    { key: "TOJO_UNA_UNA", nama: "Kabupaten Tojo Una-Una", aliases: ["TOJO UNA UNA"] },
+    { key: "TOLI_TOLI", nama: "Kabupaten Toli-Toli", aliases: ["TOLI TOLI"] },
+];

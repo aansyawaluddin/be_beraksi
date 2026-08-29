@@ -11,6 +11,7 @@ import {
     getListPengusulan,
     getDetailPengusulan,
     updateStatusPengusulan,
+    getGisPeta,
 } from "../controllers/adminController.js";
 import { authenticate } from "../middleware/authenticate.js";
 import upload from "../middleware/uploadExcel.js";
@@ -39,6 +40,8 @@ router.post("/bansos/:slug/upload", upload.single("file"), asyncHandler(uploadBa
 router.get("/pengusulan", asyncHandler(getListPengusulan));
 router.get("/pengusulan/:id", asyncHandler(getDetailPengusulan));
 router.patch("/pengusulan/:id/status", asyncHandler(updateStatusPengusulan));
+
+router.get("/gis", asyncHandler(getGisPeta));
 
 // Pengaturan akun
 router.patch("/account", asyncHandler(updateAccountSettings));
