@@ -598,7 +598,11 @@ export async function getListPengusulan(req, res) {
 }
 
 export async function getDetailPengusulan(req, res) {
-    const { id } = req.params;
+    const id = parseInt(req.params.id, 10);
+
+    if (Number.isNaN(id)) {
+        return error(res, "ID pengusulan tidak valid", 400);
+    }
 
     const pengusulan = await prisma.pengusulan.findUnique({
         where: { id },
@@ -612,8 +616,12 @@ export async function getDetailPengusulan(req, res) {
 }
 
 export async function updateStatusPengusulan(req, res) {
-    const { id } = req.params;
+    const id = parseInt(req.params.id, 10);
     const { status, catatanAdmin } = req.body;
+
+    if (Number.isNaN(id)) {
+        return error(res, "ID pengusulan tidak valid", 400);
+    }
 
     if (!STATUS_PENGUSULAN_UPDATE_VALID.includes(status)) {
         return error(res, "Status harus DISETUJUI atau DITOLAK", 400);
