@@ -31,34 +31,29 @@ export function formatNomorPengusulan(nomorUrut) {
     return `PG-${String(nomorUrut).padStart(4, "0")}`;
 }
 
-export function bacaDokumenSebagaiDataUrl(relPath) {
+export function urlDokumen(relPath) {
     if (!relPath) return null;
 
     const fullPath = path.join(UPLOAD_ROOT_PENGUSULAN, relPath);
-
     if (!fullPath.startsWith(UPLOAD_ROOT_PENGUSULAN) || !fs.existsSync(fullPath)) {
         return null;
     }
 
-    const ext = path.extname(fullPath).toLowerCase();
-    const mime = ext === ".png" ? "image/png" : "image/jpeg";
-    const base64 = fs.readFileSync(fullPath).toString("base64");
-
-    return `data:${mime};base64,${base64}`;
+    return `/admin/pengusulan-files/${relPath.replace(/\\/g, "/")}`;
 }
 
 export function buildDokumenChecklist(pengusulan) {
-    const dataUrlDokumen = {
-        ktp: bacaDokumenSebagaiDataUrl(pengusulan.fotoKtp),
-        kk: bacaDokumenSebagaiDataUrl(pengusulan.fotoKk),
-        rumah: bacaDokumenSebagaiDataUrl(pengusulan.fotoRumah),
+    const urlDokumenMap = {
+        ktp: urlDokumen(pengusulan.fotoKtp),
+        kk: urlDokumen(pengusulan.fotoKk),
+        rumah: urlDokumen(pengusulan.fotoRumah),
     };
 
-    const dokumen = Object.entries(dataUrlDokumen).map(([jenis, dataUrl]) => ({
+    const dokumen = Object.entries(urlDokumenMap).map(([jenis, url]) => ({
         jenis,
         label: DOKUMEN_LABEL[jenis],
-        sudahDiunggah: Boolean(dataUrl),
-        dataUrl,
+        sudahDiunggah: Boolean(url),
+        url,
     }));
 
     const jumlahDokumenLengkap = dokumen.filter((d) => d.sudahDiunggah).length;

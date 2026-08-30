@@ -1,4 +1,5 @@
 import { Router } from "express";
+import express from "express";
 import {
     getDashboardStats,
     getListWarga,
@@ -16,10 +17,13 @@ import {
 import { authenticate } from "../middleware/authenticate.js";
 import upload from "../middleware/uploadExcel.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { UPLOAD_ROOT_PENGUSULAN } from "../utils/uploadPaths.js";
 
 const router = Router();
 
 router.use(authenticate);
+
+router.use("/pengusulan-files", express.static(UPLOAD_ROOT_PENGUSULAN));
 
 // Dashboard
 router.get("/dashboard/stats", asyncHandler(getDashboardStats));
