@@ -9,6 +9,7 @@ import { cariBansosDiterima } from "../utils/cariBansosDiterima.js";
 import { WILAYAH_SULTENG } from "../constants/wilayahSulteng.js";
 import { cocokkanWilayah } from "../utils/wilayahMatcher.js";
 import { parseDesil } from "../utils/statusBantuan.js";
+import { catatBansosDiterima } from "../utils/catatBansosDiterima.js";
 import { isAktifWhere, buildSebaranPerDesil } from "../utils/wargaStats.js";
 import { BANSOS_PROGRAMS, getBansosProgramBySlug } from "../constants/bansosPrograms.js";
 import {
@@ -633,17 +634,39 @@ export async function updateStatusPengusulan(req, res) {
         return error(res, "Data pengusulan tidak ditemukan", 404);
     }
 
-    const updated = await prisma.pengusulan.update({
-        where: { id },
-        data: {
-            status,
-            catatanAdmin: catatanAdmin ? String(catatanAdmin).trim() : null,
-            diprosesAt: new Date(),
-        },
-    });
+    if (status === "DISETUJUI" && !getBansosProgramBySlug(pengusulan.programSlug)) {
+        return error(
+            res,
+            "Program bansos pada pengusulan ini tidak dikenali, tidak bisa disetujui otomatis",
+            400
+        );
+    }
+
+    let updated;
+    try {
+        updated = await prisma.$transaction(async (tx) => {
+            const hasil = await tx.pengusulan.update({
+                where: { id },
+                data: {
+                    status,
+                    catatanAdmin: catatanAdmin ? String(catatanAdmin).trim() : null,
+                    diprosesAt: new Date(),
+                },
+            });
+
+            if (status === "DISETUJUI") {
+                await catatBansosDiterima(hasil, req.user.id, tx);
+            }
+
+            return hasil;
+        });
+    } catch (err) {
+        console.error("GAGAL UPDATE STATUS PENGUSULAN:", err);
+        return error(res, "Gagal memproses pengusulan, coba lagi", 500);
+    }
 
     const pesan = status === "DISETUJUI"
-        ? "Pengusulan berhasil disetujui"
+        ? "Pengusulan berhasil disetujui dan tercatat sebagai penerima bansos"
         : "Pengusulan berhasil ditolak";
 
     return success(res, updated, pesan);

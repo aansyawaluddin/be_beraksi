@@ -123,7 +123,7 @@ model BansosUepSajuta {
   kabupaten     String?
   desaKelurahan String?
   tahunBantuan  Int?
-  createdById   String?
+  createdById   Int?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -139,7 +139,7 @@ model BansosUepPotendeLima {
   kabupaten     String?
   desaKelurahan String?
   tahunBantuan  Int?
-  createdById   String?
+  createdById   Int?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -155,7 +155,7 @@ model BansosUepPotendeSapuluh {
   kabupaten     String?
   desaKelurahan String?
   tahunBantuan  Int?
-  createdById   String?
+  createdById   Int?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -171,7 +171,7 @@ model BansosKube {
   kabupaten     String?
   desaKelurahan String?
   tahunBantuan  Int?
-  createdById   String?
+  createdById   Int?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -187,7 +187,7 @@ model BansosBantuanTunai {
   kabupaten     String?
   desaKelurahan String?
   tahunBantuan  Int?
-  createdById   String?
+  createdById   Int?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -205,7 +205,7 @@ model BansosPanganStunting {
   kabupaten     String?
   desaKelurahan String?
   tahunBantuan  Int?
-  createdById   String?
+  createdById   Int?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -221,7 +221,7 @@ model BansosRst {
   kabupaten     String?
   desaKelurahan String?
   tahunBantuan  Int?
-  createdById   String?
+  createdById   Int?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -239,7 +239,7 @@ model BansosBantalanLansia {
   kabupaten     String?
   desaKelurahan String?
   tahunBantuan  Int?
-  createdById   String?
+  createdById   Int?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -255,7 +255,7 @@ model BansosAlatBantuLansia {
   kabupaten     String?
   desaKelurahan String?
   tahunBantuan  Int?
-  createdById   String?
+  createdById   Int?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -271,7 +271,7 @@ model BansosAlatBantuDisabilitas {
   kabupaten     String?
   desaKelurahan String?
   tahunBantuan  Int?
-  createdById   String?
+  createdById   Int?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -287,7 +287,7 @@ model BansosPanadaLansia {
   kabupaten     String?
   desaKelurahan String?
   tahunBantuan  Int?
-  createdById   String?
+  createdById   Int?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -303,7 +303,7 @@ model BansosPanadaDisabilitas {
   kabupaten     String?
   desaKelurahan String?
   tahunBantuan  Int?
-  createdById   String?
+  createdById   Int?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -319,7 +319,7 @@ model BansosUepBwblp {
   kabupaten     String?
   desaKelurahan String?
   tahunBantuan  Int?
-  createdById   String?
+  createdById   Int?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -337,7 +337,7 @@ model BansosUepKeluargaPlasma {
   kabupaten     String?
   desaKelurahan String?
   tahunBantuan  Int?
-  createdById   String?
+  createdById   Int?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
