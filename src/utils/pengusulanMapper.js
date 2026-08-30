@@ -80,11 +80,25 @@ function resolveProgram(programSlug) {
         : { slug: programSlug, nama: programSlug, bidang: null };
 }
 
+export function formatTanggalSingkat(date) {
+    return new Intl.DateTimeFormat("id-ID", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+    }).format(date);
+}
+
 export function formatRingkasanPengusulan(pengusulan) {
     return {
-        ...pengusulan,
-        program: resolveProgram(pengusulan.programSlug),
-        nomorPengusulan: formatNomorPengusulan(pengusulan.nomorUrut),
+        id: pengusulan.id,
+        namaPenerima: pengusulan.namaCalonPenerima,
+        nikPenerima: pengusulan.nikCalonPenerima,
+        jenisUsulanLabel: JENIS_USULAN_LABEL[pengusulan.jenisUsulan] || pengusulan.jenisUsulan,
+        program: resolveProgram(pengusulan.programSlug).nama,
+        kabupaten: pengusulan.kabupaten,
+        nomorWhatsapp: pengusulan.nomorWhatsapp,
+        tanggalFormatted: formatTanggalSingkat(pengusulan.createdAt),
+        status: pengusulan.status,
         statusLabel: STATUS_LABEL[pengusulan.status] || pengusulan.status,
     };
 }
@@ -96,7 +110,7 @@ export function formatDetailPengusulan(pengusulan) {
     return {
         ...pengusulanTanpaPathFoto,
         program: resolveProgram(pengusulan.programSlug),
-        nomorPengusulan: formatNomorPengusulan(pengusulan.nomorUrut),
+        nomorPengusulan: formatNomorPengusulan(pengusulan.id),
         statusLabel: STATUS_LABEL[pengusulan.status] || pengusulan.status,
         jenisUsulanLabel: JENIS_USULAN_LABEL[pengusulan.jenisUsulan] || pengusulan.jenisUsulan,
         jenisPengusulanLabel: JENIS_PENGUSULAN_LABEL[pengusulan.jenisPengusulan] || pengusulan.jenisPengusulan,

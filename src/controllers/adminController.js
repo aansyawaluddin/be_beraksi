@@ -572,6 +572,17 @@ export async function getListPengusulan(req, res) {
             orderBy: { createdAt: "desc" },
             skip,
             take: limitNum,
+            select: {
+                id: true,
+                namaCalonPenerima: true,
+                nikCalonPenerima: true,
+                jenisUsulan: true,
+                programSlug: true,
+                kabupaten: true,
+                nomorWhatsapp: true,
+                createdAt: true,
+                status: true,
+            },
         }),
     ]);
 
