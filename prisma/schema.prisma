@@ -80,19 +80,6 @@ model Warga {
   @@map("warga")
 }
 
-model ProgramBantuan {
-  id        Int   @id @default(autoincrement())
-  nama      String   @unique
-  aktif     Boolean  @default(true)
-  urutan    Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  pengusulan Pengusulan[]
-
-  @@map("program_bantuan")
-}
-
 model Pengusulan {
   id                Int           @id @default(autoincrement())
   jenisPengusulan   JenisPengusulan
@@ -104,8 +91,7 @@ model Pengusulan {
   namaCalonPenerima String
   nikCalonPenerima  String
 
-  programId         Int
-  program           ProgramBantuan   @relation(fields: [programId], references: [id])
+  programSlug       String
 
   kabupaten         String
   nomorWhatsapp     String
@@ -124,7 +110,7 @@ model Pengusulan {
 
   @@index([nikCalonPenerima])
   @@index([status])
-  @@index([programId])
+  @@index([programSlug])
   @@map("pengusulan")
 }
 

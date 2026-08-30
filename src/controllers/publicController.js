@@ -4,6 +4,7 @@ import prisma from "../lib/prisma.js";
 import { success, error } from "../utils/response.js";
 import { UPLOAD_ROOT_PENGUSULAN } from "../utils/uploadPaths.js";
 import { cariBansosDiterima } from "../utils/cariBansosDiterima.js";
+import { BANSOS_PROGRAMS, getBansosProgramBySlug } from "../constants/bansosPrograms.js";
 import {
     getDesilDeskripsi,
     parseDesil,
@@ -55,12 +56,12 @@ export async function cekStatusByNik(req, res) {
     }, "Data ditemukan");
 }
 
-export async function getProgramBantuan(req, res) {
-    const programBantuan = await prisma.programBantuan.findMany({
-        where: { aktif: true },
-        orderBy: { urutan: "asc" },
-        select: { id: true, nama: true },
-    });
+export function getProgramBantuan(req, res) {
+    const programBantuan = BANSOS_PROGRAMS.map(({ slug, nama, bidang }) => ({
+        slug,
+        nama,
+        bidang,
+    }));
 
     return success(res, programBantuan);
 }
@@ -89,7 +90,7 @@ export async function createPengusulan(req, res) {
     const {
         jenisPengusulan,
         jenisUsulan,
-        programId,
+        programSlug,
         namaPengusul,
         nikPengusul,
         namaCalonPenerima,
@@ -111,7 +112,7 @@ export async function createPengusulan(req, res) {
         return error(res, "Nama pengusul, NIK pengusul, kabupaten/kota, dan nomor WhatsApp wajib diisi", 400);
     }
 
-    if (!programId) {
+    if (!programSlug) {
         return error(res, "Program bantuan wajib dipilih", 400);
     }
 
@@ -142,12 +143,10 @@ export async function createPengusulan(req, res) {
         return error(res, "NIK calon penerima harus terdiri dari 16 digit angka", 400);
     }
 
-    const program = await prisma.programBantuan.findFirst({
-        where: { id: programId, aktif: true },
-    });
+    const program = getBansosProgramBySlug(programSlug);
 
     if (!program) {
-        return error(res, "Program bantuan yang dipilih tidak ditemukan atau tidak aktif", 400);
+        return error(res, "Program bantuan yang dipilih tidak ditemukan", 400);
     }
 
     const wargaCalonPenerima = await prisma.warga.findUnique({
@@ -190,7 +189,7 @@ export async function createPengusulan(req, res) {
                 nikPengusul: nikPengusulBersih,
                 namaCalonPenerima: String(namaCalonPenerimaFinal).trim(),
                 nikCalonPenerima: nikCalonPenerimaBersih,
-                programId: program.id,
+                programSlug: program.slug,
                 kabupaten: String(kabupaten).trim(),
                 nomorWhatsapp: String(nomorWhatsapp).trim(),
                 keterangan: keterangan ? String(keterangan).trim() : null,

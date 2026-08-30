@@ -572,9 +572,6 @@ export async function getListPengusulan(req, res) {
             orderBy: { createdAt: "desc" },
             skip,
             take: limitNum,
-            include: {
-                program: { select: { nama: true } },
-            },
         }),
     ]);
 
@@ -594,9 +591,6 @@ export async function getDetailPengusulan(req, res) {
 
     const pengusulan = await prisma.pengusulan.findUnique({
         where: { id },
-        include: {
-            program: { select: { id: true, nama: true } },
-        },
     });
 
     if (!pengusulan) {
@@ -649,7 +643,7 @@ async function hitungRingkasanGisPerWilayah() {
         )
     );
 
-    const nikPerWilayah = new Map(); 
+    const nikPerWilayah = new Map();
     const nikTanpaWilayah = new Set();
 
     for (const rows of hasilPerProgram) {

@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { UPLOAD_ROOT_PENGUSULAN } from "./uploadPaths.js";
+import { getBansosProgramBySlug } from "../constants/bansosPrograms.js";
 
 export const STATUS_PENGUSULAN_UPDATE_VALID = ["DISETUJUI", "DITOLAK"];
 
@@ -71,9 +72,18 @@ export function buildDokumenChecklist(pengusulan) {
     };
 }
 
+function resolveProgram(programSlug) {
+    const program = getBansosProgramBySlug(programSlug);
+
+    return program
+        ? { slug: program.slug, nama: program.nama, bidang: program.bidang }
+        : { slug: programSlug, nama: programSlug, bidang: null };
+}
+
 export function formatRingkasanPengusulan(pengusulan) {
     return {
         ...pengusulan,
+        program: resolveProgram(pengusulan.programSlug),
         nomorPengusulan: formatNomorPengusulan(pengusulan.nomorUrut),
         statusLabel: STATUS_LABEL[pengusulan.status] || pengusulan.status,
     };
@@ -85,6 +95,7 @@ export function formatDetailPengusulan(pengusulan) {
 
     return {
         ...pengusulanTanpaPathFoto,
+        program: resolveProgram(pengusulan.programSlug),
         nomorPengusulan: formatNomorPengusulan(pengusulan.nomorUrut),
         statusLabel: STATUS_LABEL[pengusulan.status] || pengusulan.status,
         jenisUsulanLabel: JENIS_USULAN_LABEL[pengusulan.jenisUsulan] || pengusulan.jenisUsulan,
