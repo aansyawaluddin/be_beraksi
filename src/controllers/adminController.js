@@ -41,6 +41,8 @@ export async function getDashboardStats(req, res) {
         Promise.all(
             BANSOS_PROGRAMS.map(async (program) => ({
                 bidang: program.bidang,
+                programSlug: program.slug,
+                namaProgram: program.nama,
                 jumlah: await prisma[program.model].count(),
             }))
         ),
@@ -55,6 +57,13 @@ export async function getDashboardStats(req, res) {
         totalPenyaluranBansos += jumlah;
     }
 
+    const bansosPerProgram = bansosCounts.map(({ bidang, programSlug, namaProgram, jumlah }) => ({
+        bidang,
+        programSlug,
+        namaProgram,
+        jumlah,
+    }));
+
     return success(res, {
         totalWarga,
         jumlahLansia: lansiaCount,
@@ -62,9 +71,9 @@ export async function getDashboardStats(req, res) {
         sebaranPerDesil,
         totalPenyaluranBansos,
         bansosPerBidang: Object.entries(bansosPerBidang).map(([bidang, jumlah]) => ({ bidang, jumlah })),
+        bansosPerProgram,
     });
 }
-
 
 export async function getListWarga(req, res) {
     const { search = "", page = 1, limit = 20 } = req.query;
