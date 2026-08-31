@@ -673,6 +673,7 @@ export async function updateStatusPengusulan(req, res) {
 }
 
 const CHUNK_CEK_GIS = 2000;
+const DAFTAR_BIDANG = [...new Set(BANSOS_PROGRAMS.map((p) => p.bidang))];
 
 async function hitungRingkasanGisPerWilayah() {
     const hasilPerProgram = await Promise.all(
@@ -686,9 +687,12 @@ async function hitungRingkasanGisPerWilayah() {
     );
 
     const nikPerWilayah = new Map();
+    const nikPerWilayahBidang = new Map();
     const nikTanpaWilayah = new Set();
 
-    for (const rows of hasilPerProgram) {
+    hasilPerProgram.forEach((rows, idx) => {
+        const { bidang } = BANSOS_PROGRAMS[idx];
+
         for (const { nik, kabupaten } of rows) {
             if (!nik) continue;
             const wilayah = cocokkanWilayah(kabupaten);
@@ -698,8 +702,13 @@ async function hitungRingkasanGisPerWilayah() {
             }
             if (!nikPerWilayah.has(wilayah.key)) nikPerWilayah.set(wilayah.key, new Set());
             nikPerWilayah.get(wilayah.key).add(nik);
+
+            if (!nikPerWilayahBidang.has(wilayah.key)) nikPerWilayahBidang.set(wilayah.key, new Map());
+            const bidangMap = nikPerWilayahBidang.get(wilayah.key);
+            if (!bidangMap.has(bidang)) bidangMap.set(bidang, new Set());
+            bidangMap.get(bidang).add(nik);
         }
-    }
+    });
 
     const semuaNik = Array.from(
         new Set(Array.from(nikPerWilayah.values()).flatMap((set) => Array.from(set)))
@@ -717,7 +726,6 @@ async function hitungRingkasanGisPerWilayah() {
 
     const wilayah = WILAYAH_SULTENG.map((w) => {
         const nikSet = nikPerWilayah.get(w.key) || new Set();
-        const jumlahPenerima = nikSet.size;
 
         const nilaiDesil = Array.from(nikSet)
             .map((nik) => desilPerNik.get(nik))
@@ -727,10 +735,19 @@ async function hitungRingkasanGisPerWilayah() {
             ? Math.round((nilaiDesil.reduce((a, b) => a + b, 0) / nilaiDesil.length) * 10) / 10
             : null;
 
+        const bidangMap = nikPerWilayahBidang.get(w.key) || new Map();
+        const perBidang = DAFTAR_BIDANG.map((bidang) => ({
+            bidang,
+            jumlahPenerima: (bidangMap.get(bidang) || new Set()).size,
+        }));
+
+        const jumlahPenerima = perBidang.reduce((total, b) => total + b.jumlahPenerima, 0);
+
         return {
             kabupaten: w.nama,
             jumlahPenerima,
             rataRataDesil,
+            perBidang,
         };
     });
 
@@ -747,9 +764,18 @@ async function hitungRingkasanGisPerWilayah() {
 export async function getGisPeta(req, res) {
     const { wilayah, tidakDikenali, rataRataDesilKeseluruhan } = await hitungRingkasanGisPerWilayah();
 
-    const peta = wilayah.map(({ kabupaten, jumlahPenerima }) => ({
+    const totalPenerima = wilayah.reduce((total, w) => total + w.jumlahPenerima, 0);
+
+    const peta = wilayah.map(({ kabupaten, jumlahPenerima, perBidang }) => ({
         kabupaten,
         jumlahPenerima,
+        perBidang: perBidang.map(({ bidang, jumlahPenerima: jumlahBidang }) => ({
+            bidang,
+            jumlahPenerima: jumlahBidang,
+            persenPenerima: totalPenerima > 0
+                ? Math.round((jumlahBidang / totalPenerima) * 1000) / 10
+                : 0,
+        })),
     }));
 
     const rataRataDesilPerWilayah = wilayah.map(({ kabupaten, rataRataDesil }) => ({
@@ -762,8 +788,6 @@ export async function getGisPeta(req, res) {
         jumlahPenerima,
         rataRataDesil,
     }));
-
-    const totalPenerima = wilayah.reduce((total, w) => total + w.jumlahPenerima, 0);
 
     return success(res, {
         totalPenerima,
