@@ -3,7 +3,7 @@ import path from "path";
 import prisma from "../lib/prisma.js";
 import { success, error } from "../utils/response.js";
 import { UPLOAD_ROOT_PENGUSULAN } from "../utils/uploadPaths.js";
-import { cariBansosDiterima } from "../utils/cariBansosDiterima.js";
+import { cariBansosDiterima, cariDataPenerimaBansos } from "../utils/cariBansosDiterima.js";
 import { BANSOS_PROGRAMS, getBansosProgramBySlug } from "../constants/bansosPrograms.js";
 import {
     getDesilDeskripsi,
@@ -38,24 +38,35 @@ export async function cekStatusByNik(req, res) {
         },
     });
 
-    if (!warga) {
+    if (warga) {
+        const bansosDiterima = await cariBansosDiterima(nikBersih);
+        const desil = parseDesil(warga.desilTerbaru);
+
+        return success(res, {
+            nik: maskNik(warga.nik),
+            nama: warga.nama,
+            lokasi: [warga.kecamatan, warga.kabupaten].filter(Boolean).join(", "),
+            desil,
+            desilDeskripsi: desil ? getDesilDeskripsi(desil) : null,
+            bansosDiterima,
+        }, "Data ditemukan");
+    }
+
+    const { bansosDiterima, profil } = await cariDataPenerimaBansos(nikBersih);
+
+    if (bansosDiterima.length === 0) {
         return error(res, "Data dengan NIK tersebut tidak ditemukan", 404);
     }
 
-    const desil = parseDesil(warga.desilTerbaru);
-
-    const bansosDiterima = await cariBansosDiterima(nikBersih);
-
     return success(res, {
-        nik: maskNik(warga.nik),
-        nama: warga.nama,
-        lokasi: [warga.kecamatan, warga.kabupaten].filter(Boolean).join(", "),
-        desil,
-        desilDeskripsi: desil ? getDesilDeskripsi(desil) : null,
+        nik: maskNik(nikBersih),
+        nama: profil?.nama || null,
+        lokasi: [profil?.desaKelurahan, profil?.kabupaten].filter(Boolean).join(", ") || null,
+        desil: null,
+        desilDeskripsi: null,
         bansosDiterima,
-    }, "Data ditemukan");
+    }, "Data ditemukan (NIK belum terdaftar di DTKS, sehingga desil tidak tersedia)");
 }
-
 export function getProgramBantuan(req, res) {
     const programBantuan = BANSOS_PROGRAMS.map(({ slug, nama, bidang }) => ({
         slug,
