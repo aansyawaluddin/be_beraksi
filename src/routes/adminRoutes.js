@@ -14,6 +14,7 @@ import {
     getDetailPengusulan,
     updateStatusPengusulan,
     getGisPeta,
+    truncateWarga,
 } from "../controllers/adminController.js";
 import { authenticate } from "../middleware/authenticate.js";
 import upload from "../middleware/uploadExcel.js";
@@ -51,5 +52,7 @@ router.get("/gis", asyncHandler(getGisPeta));
 
 // Pengaturan akun
 router.patch("/account", asyncHandler(updateAccountSettings));
+
+router.post("/warga/truncate", asyncHandler(truncateWarga));
 
 export default router;

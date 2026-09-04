@@ -850,3 +850,32 @@ export async function getGisPeta(req, res) {
         ...(tidakDikenali > 0 ? { dataTanpaWilayahDikenali: tidakDikenali } : {}),
     });
 }
+
+export async function truncateWarga(req, res) {
+    const { konfirmasi } = req.body;
+
+    const totalSebelum = await prisma.warga.count();
+
+    if (konfirmasi !== "HAPUS SEMUA DATA WARGA") {
+        return error(
+            res,
+            `Konfirmasi tidak valid. Aksi ini akan menghapus SEMUA ${totalSebelum} data warga secara permanen dan tidak bisa dibatalkan. Untuk melanjutkan, kirim ulang request dengan body { "konfirmasi": "HAPUS SEMUA DATA WARGA" }`,
+            400
+        );
+    }
+
+    try {
+        await prisma.$executeRaw`TRUNCATE TABLE warga`;
+    } catch (err) {
+        console.error("TRUNCATE WARGA ERROR:", err);
+        return error(res, "Gagal menghapus data warga", 500, err.message);
+    }
+
+    console.log(`[truncate-warga] ${totalSebelum} baris dihapus oleh user id ${req.user.id}`);
+
+    return success(
+        res,
+        { totalDihapus: totalSebelum },
+        "Semua data warga berhasil dihapus. Auto-increment ID akan mulai dari 1 lagi."
+    );
+}
