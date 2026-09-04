@@ -4,11 +4,13 @@ import authRoutes from "./routes/authRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import publicRoutes from "./routes/publicRoutes.js";
 import { error } from "./utils/response.js";
+import { requestLogger } from "./middleware/requestLogger.js";
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+app.use(requestLogger);
 
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
