@@ -22,7 +22,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
     storage,
-    limits: { fileSize: 25 * 1024 * 1024 },
+    limits: { fileSize: 100 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
         const allowed = [
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
