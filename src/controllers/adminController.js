@@ -76,7 +76,14 @@ export async function getDashboardStats(req, res) {
 }
 
 export async function getListWarga(req, res) {
-    const { search = "", page = 1, limit = 20 } = req.query;
+    const {
+        search = "",
+        page = 1,
+        limit = 20,
+        kabupaten,
+        kecamatan,
+        desil
+    } = req.query;
 
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
     const limitNum = Math.max(parseInt(limit, 10) || 20, 1);
@@ -84,17 +91,34 @@ export async function getListWarga(req, res) {
 
     const keyword = String(search).trim();
 
-    const where = keyword
-        ? {
-            OR: [
-                { nama: { contains: keyword } },
-                { nik: { contains: keyword } },
-                { kabupaten: { contains: keyword } },
-                { kecamatan: { contains: keyword } },
-                { desaKelurahan: { contains: keyword } },
-            ],
+    const where = {};
+
+    if (keyword) {
+        where.OR = [
+            { nama: { contains: keyword } },
+            { nik: { contains: keyword } },
+            { kabupaten: { contains: keyword } },
+            { kecamatan: { contains: keyword } },
+            { desaKelurahan: { contains: keyword } },
+        ];
+    }
+
+    if (kabupaten) {
+        where.kabupaten = kabupaten;
+    }
+
+    if (kecamatan) {
+        where.kecamatan = kecamatan;
+    }
+
+    if (desil) {
+        const desilNum = parseInt(desil, 10);
+        if (desilNum === 0) {
+            where.desilTerbaru = null;
+        } else {
+            where.desilTerbaru = { in: [String(desilNum), `Desil ${desilNum}`, `desil ${desilNum}`, `DESIL ${desilNum}`] };
         }
-        : {};
+    }
 
     const [total, data] = await Promise.all([
         prisma.warga.count({ where }),
@@ -125,6 +149,25 @@ export async function getListWarga(req, res) {
             totalPages: Math.max(Math.ceil(total / limitNum), 1),
         },
     });
+}
+
+export async function getKecamatanByKabupaten(req, res) {
+    const { kabupaten } = req.query;
+    const kabupatenTrimmed = String(kabupaten || "").trim();
+
+    if (!kabupatenTrimmed) {
+        return error(res, "kabupaten wajib diisi", 400);
+    }
+
+    const rows = await prisma.warga.findMany({
+        where: { kabupaten: kabupatenTrimmed },
+        distinct: ["kecamatan"],
+        select: { kecamatan: true },
+        orderBy: { kecamatan: "asc" },
+    });
+
+    const kecamatanList = rows.map((r) => r.kecamatan).filter(Boolean);
+    return success(res, kecamatanList);
 }
 
 export async function getDetailWarga(req, res) {

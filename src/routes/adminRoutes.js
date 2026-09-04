@@ -3,6 +3,7 @@ import express from "express";
 import {
     getDashboardStats,
     getListWarga,
+    getKecamatanByKabupaten,
     getDetailWarga,
     uploadWargaExcel,
     getDaftarProgramBansos,
@@ -30,6 +31,7 @@ router.get("/dashboard/stats", asyncHandler(getDashboardStats));
 
 // Data warga (read-only)
 router.get("/warga", asyncHandler(getListWarga));
+router.get("/warga/wilayah/kecamatan", asyncHandler(getKecamatanByKabupaten));
 router.get("/warga/:id", asyncHandler(getDetailWarga));
 
 // Upload excel data warga (BNBA)
