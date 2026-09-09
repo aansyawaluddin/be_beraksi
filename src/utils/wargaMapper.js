@@ -51,20 +51,55 @@ function normalizeJenisKelamin(value) {
     return null;
 }
 
-function parseTanggalLahir(value) {
-    if (!value) return null;
-    if (value instanceof Date && !isNaN(value)) return value;
+const SELISIH_HARI_EPOCH_EXCEL = 25569; 
 
-    const str = String(value).trim();
-    const match = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-    if (match) {
-        const [, dd, mm, yyyy] = match;
-        const date = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
-        if (!isNaN(date)) return date;
+function excelSerialToDate(serial) {
+    const utcDays = Math.round(serial) - SELISIH_HARI_EPOCH_EXCEL;
+    const date = new Date(utcDays * 86400 * 1000);
+    return isNaN(date) ? null : date;
+}
+
+function isTahunWajar(date) {
+    const tahun = date.getFullYear();
+    return tahun >= 1900 && tahun <= new Date().getFullYear();
+}
+
+function parseTanggalLahir(value) {
+    if (value === null || value === undefined || value === "") return null;
+
+    if (value instanceof Date && !isNaN(value)) {
+        return isTahunWajar(value) ? value : null;
     }
 
+    if (typeof value === "number") {
+        const converted = excelSerialToDate(value);
+        return converted && isTahunWajar(converted) ? converted : null;
+    }
+
+    const str = String(value).trim();
+
+    // Format asli di file BERAKSI: "YYYY-MM-DD"
+    const isoMatch = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (isoMatch) {
+        const [, yyyy, mm, dd] = isoMatch;
+        const date = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
+        if (!isNaN(date) && isTahunWajar(date)) return date;
+    }
+
+    // Jaga-jaga kalau ada file lain format "DD/MM/YYYY"
+    const slashMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (slashMatch) {
+        const [, dd, mm, yyyy] = slashMatch;
+        const date = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
+        if (!isNaN(date) && isTahunWajar(date)) return date;
+    }
+
+    // Angka mentah dalam bentuk string (NIK/KK ketuker kolom, dll) — jangan coba parse jadi Date
+    if (/^\d+$/.test(str)) return null;
+
     const fallback = new Date(str);
-    return isNaN(fallback) ? null : fallback;
+    if (isNaN(fallback) || !isTahunWajar(fallback)) return null;
+    return fallback;
 }
 
 function cleanString(value) {

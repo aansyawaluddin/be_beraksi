@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import fs from "fs";
 import XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import prisma from "../lib/prisma.js";
 import { success, error } from "../utils/response.js";
 import { mapExcelRowToWarga } from "../utils/wargaMapper.js";
@@ -223,22 +224,6 @@ export async function uploadWargaExcel(req, res) {
         return error(res, "File Excel wajib diupload", 400);
     }
 
-    let rows;
-    try {
-        const fileBuffer = fs.readFileSync(req.file.path);
-        const workbook = XLSX.read(fileBuffer, { type: "buffer", cellDates: true });
-        const firstSheetName = workbook.SheetNames[0];
-        const sheet = workbook.Sheets[firstSheetName];
-        rows = XLSX.utils.sheet_to_json(sheet, { defval: null });
-    } catch (err) {
-        console.error("XLSX READ ERROR:", err);
-        return error(res, "Gagal membaca file Excel, pastikan formatnya benar", 400, err.message);
-    }
-
-    if (!rows || rows.length === 0) {
-        return error(res, "File Excel kosong atau tidak ada baris data", 400);
-    }
-
     res.status(200);
     res.setHeader("Content-Type", "application/json; charset=utf-8");
     const heartbeat = setInterval(() => {
@@ -247,77 +232,104 @@ export async function uploadWargaExcel(req, res) {
     }, 10000);
 
     const t0 = Date.now();
+    const gagal = [];
+    const nikTerlihat = new Set();
+    let totalBaris = 0;
+    let inserted = 0;
+    let updated = 0;
 
-    try {
-        const gagal = [];
+    const CHUNK_SIZE = 1000;
+    const UPDATE_CONCURRENCY = 5;
+    let headers = null;
+    let buffer = [];
 
-        const validRows = [];
-        const nikTerlihat = new Set();
+    async function flushBuffer() {
+        if (buffer.length === 0) return;
 
-        for (let i = 0; i < rows.length; i++) {
-            const nomorBaris = i + 2;
-            const { valid, alasan, data } = mapExcelRowToWarga(rows[i]);
+        const batchNik = buffer.map((v) => v.data.nik);
+        const existing = await prisma.warga.findMany({
+            where: { nik: { in: batchNik } },
+            select: { nik: true },
+        });
+        const existingSet = new Set(existing.map((w) => w.nik));
 
-            if (!valid) {
-                gagal.push({ baris: nomorBaris, alasan });
-                continue;
-            }
-            if (nikTerlihat.has(data.nik)) {
-                gagal.push({ baris: nomorBaris, alasan: `NIK ${data.nik} duplikat di dalam file ini` });
-                continue;
-            }
-            nikTerlihat.add(data.nik);
-            validRows.push({ nomorBaris, data });
-        }
+        const toCreate = buffer.filter((v) => !existingSet.has(v.data.nik));
+        const toUpdate = buffer.filter((v) => existingSet.has(v.data.nik));
 
-        console.log(`[upload-warga] validasi selesai: ${validRows.length} valid, ${gagal.length} gagal (${Date.now() - t0}ms)`);
-
-        const CHUNK_CEK = 2000;
-        const nikSudahAda = new Set();
-        for (let i = 0; i < validRows.length; i += CHUNK_CEK) {
-            const batchNik = validRows.slice(i, i + CHUNK_CEK).map((v) => v.data.nik);
-            const existing = await prisma.warga.findMany({
-                where: { nik: { in: batchNik } },
-                select: { nik: true },
-            });
-            existing.forEach((w) => nikSudahAda.add(w.nik));
-        }
-
-        console.log(`[upload-warga] cek existing selesai: ${nikSudahAda.size} sudah ada (${Date.now() - t0}ms)`);
-
-        const toCreate = validRows.filter((v) => !nikSudahAda.has(v.data.nik));
-        const toUpdate = validRows.filter((v) => nikSudahAda.has(v.data.nik));
-
-        let inserted = 0;
-        const CHUNK_INSERT = 1000;
-        for (let i = 0; i < toCreate.length; i += CHUNK_INSERT) {
-            const batch = toCreate.slice(i, i + CHUNK_INSERT);
+        if (toCreate.length > 0) {
             try {
                 const result = await prisma.warga.createMany({
-                    data: batch.map((v) => ({ ...v.data, createdById: req.user.id })),
+                    data: toCreate.map((v) => ({ ...v.data, createdById: req.user.id })),
                     skipDuplicates: true,
                 });
                 inserted += result.count;
             } catch (err) {
-                console.error("BULK INSERT WARGA ERROR:", err);
-                batch.forEach((v) => gagal.push({ baris: v.nomorBaris, alasan: "Gagal menyimpan (batch insert)" }));
+                console.error("BULK INSERT WARGA ERROR, retry satu-satu:", err.message);
+                for (const v of toCreate) {
+                    try {
+                        await prisma.warga.create({ data: { ...v.data, createdById: req.user.id } });
+                        inserted += 1;
+                    } catch (rowErr) {
+                        gagal.push({ baris: v.nomorBaris, alasan: "Gagal menyimpan: " + (rowErr.message || "tidak diketahui") });
+                    }
+                }
             }
         }
 
-        console.log(`[upload-warga] insert selesai: ${inserted} baris (${Date.now() - t0}ms)`);
+        for (let i = 0; i < toUpdate.length; i += UPDATE_CONCURRENCY) {
+            const group = toUpdate.slice(i, i + UPDATE_CONCURRENCY);
+            await Promise.all(
+                group.map((v) =>
+                    prisma.warga
+                        .update({ where: { nik: v.data.nik }, data: { ...v.data, createdById: req.user.id } })
+                        .then(() => { updated += 1; })
+                        .catch(() => { gagal.push({ baris: v.nomorBaris, alasan: "Gagal menyimpan ke database" }); })
+                )
+            );
+        }
 
-        let updated = 0;
-        for (const v of toUpdate) {
-            try {
-                await prisma.warga.update({
-                    where: { nik: v.data.nik },
-                    data: { ...v.data, createdById: req.user.id },
+        buffer = [];
+    }
+
+    try {
+        const workbook = new ExcelJS.stream.xlsx.WorkbookReader(req.file.path, {});
+
+        for await (const worksheetReader of workbook) {
+            for await (const row of worksheetReader) {
+                if (row.number === 1) {
+                    headers = row.values.map((v) => (v == null ? null : String(v).trim()));
+                    continue;
+                }
+
+                totalBaris += 1;
+                const rawRow = {};
+                row.values.forEach((val, idx) => {
+                    const header = headers[idx];
+                    if (!header) return;
+                    rawRow[header] = val && typeof val === "object" && "result" in val ? val.result : val;
                 });
-                updated += 1;
-            } catch (err) {
-                gagal.push({ baris: v.nomorBaris, alasan: "Gagal menyimpan ke database" });
+
+                const { valid, alasan, data } = mapExcelRowToWarga(rawRow);
+
+                if (!valid) {
+                    gagal.push({ baris: row.number, alasan });
+                    continue;
+                }
+                if (nikTerlihat.has(data.nik)) {
+                    gagal.push({ baris: row.number, alasan: `NIK ${data.nik} duplikat di dalam file ini` });
+                    continue;
+                }
+                nikTerlihat.add(data.nik);
+                buffer.push({ nomorBaris: row.number, data });
+
+                if (buffer.length >= CHUNK_SIZE) {
+                    await flushBuffer();
+                }
             }
+            break;
         }
+
+        await flushBuffer();
 
         console.log(`[upload-warga] SELESAI: +${inserted} update${updated} (${Date.now() - t0}ms)`);
 
@@ -327,7 +339,7 @@ export async function uploadWargaExcel(req, res) {
             message: "Upload data warga selesai diproses",
             data: {
                 fileTersimpan: req.file.filename,
-                totalBaris: rows.length,
+                totalBaris,
                 berhasilDitambahkan: inserted,
                 berhasilDiperbarui: updated,
                 gagal,
@@ -336,10 +348,7 @@ export async function uploadWargaExcel(req, res) {
     } catch (err) {
         console.error("UPLOAD WARGA FATAL ERROR:", err);
         clearInterval(heartbeat);
-        res.end(JSON.stringify({
-            success: false,
-            message: err.message || "Terjadi kesalahan tak terduga saat memproses file",
-        }));
+        res.end(JSON.stringify({ success: false, message: err.message || "Terjadi kesalahan tak terduga saat memproses file" }));
     }
 }
 
