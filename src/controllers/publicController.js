@@ -3,7 +3,7 @@ import path from "path";
 import prisma from "../lib/prisma.js";
 import { success, error } from "../utils/response.js";
 import { UPLOAD_ROOT_PENGUSULAN } from "../utils/uploadPaths.js";
-import { cariBansosDiterima, cariDataPenerimaBansos } from "../utils/cariBansosDiterima.js";
+import { cariBansosDiterima, cariBansosDiusulkan, cariDataPenerimaBansos } from "../utils/cariBansosDiterima.js";
 import { BANSOS_PROGRAMS, getBansosProgramBySlug } from "../constants/bansosPrograms.js";
 import {
     getDesilDeskripsi,
@@ -39,7 +39,10 @@ export async function cekStatusByNik(req, res) {
     });
 
     if (warga) {
-        const bansosDiterima = await cariBansosDiterima(nikBersih);
+        const [bansosDiterima, bansosDiusulkan] = await Promise.all([
+            cariBansosDiterima(nikBersih),
+            cariBansosDiusulkan(nikBersih),
+        ]);
         const desil = parseDesil(warga.desilTerbaru);
 
         return success(res, {
@@ -48,13 +51,16 @@ export async function cekStatusByNik(req, res) {
             lokasi: [warga.kecamatan, warga.kabupaten].filter(Boolean).join(", "),
             desil,
             desilDeskripsi: desil ? getDesilDeskripsi(desil) : null,
-            bansosDiterima,
+            bansosDiterima: [...bansosDiterima, ...bansosDiusulkan],
         }, "Data ditemukan");
     }
 
-    const { bansosDiterima, profil } = await cariDataPenerimaBansos(nikBersih);
+    const [{ bansosDiterima, profil }, bansosDiusulkan] = await Promise.all([
+        cariDataPenerimaBansos(nikBersih),
+        cariBansosDiusulkan(nikBersih),
+    ]);
 
-    if (bansosDiterima.length === 0) {
+    if (bansosDiterima.length === 0 && bansosDiusulkan.length === 0) {
         return error(res, "Data dengan NIK tersebut tidak ditemukan", 404);
     }
 
@@ -64,7 +70,7 @@ export async function cekStatusByNik(req, res) {
         lokasi: [profil?.desaKelurahan, profil?.kabupaten].filter(Boolean).join(", ") || null,
         desil: null,
         desilDeskripsi: null,
-        bansosDiterima,
+        bansosDiterima: [...bansosDiterima, ...bansosDiusulkan],
     }, "Data ditemukan (NIK belum terdaftar di DTKS, sehingga desil tidak tersedia)");
 }
 export function getProgramBantuan(req, res) {

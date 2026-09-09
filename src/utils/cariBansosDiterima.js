@@ -1,5 +1,5 @@
 import prisma from "../lib/prisma.js";
-import { BANSOS_PROGRAMS } from "../constants/bansosPrograms.js";
+import { BANSOS_PROGRAMS, getBansosProgramBySlug } from "../constants/bansosPrograms.js";
 
 export async function cariBansosDiterima(nik) {
     const hasil = await Promise.all(
@@ -23,6 +23,29 @@ export async function cariBansosDiterima(nik) {
     );
 
     return hasil.flat();
+}
+
+export async function cariBansosDiusulkan(nik) {
+    try {
+        const rows = await prisma.pengusulan.findMany({
+            where: { nikCalonPenerima: nik, status: "MENUNGGU_REVIEW" },
+            select: { programSlug: true },
+        });
+
+        return rows.map((row) => {
+            const program = getBansosProgramBySlug(row.programSlug);
+            return {
+                program: program ? program.nama : row.programSlug,
+                bidang: program ? program.bidang : null,
+                tahunBantuan: null,
+                status: "MENUNGGU_REVIEW",
+                statusLabel: "Menunggu Review",
+            };
+        });
+    } catch (err) {
+        console.error("GAGAL CEK PENGUSULAN:", err);
+        return [];
+    }
 }
 
 export async function cariDataPenerimaBansos(nik) {
