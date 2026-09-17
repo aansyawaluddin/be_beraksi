@@ -369,13 +369,19 @@ export async function uploadBansosExcel(req, res) {
 
     const delegate = prisma[program.model];
 
+    const MAX_BARIS_EXCEL = 20000;
+
     let rows;
     try {
         const fileBuffer = fs.readFileSync(req.file.path);
-        const workbook = XLSX.read(fileBuffer, { type: "buffer", cellDates: true });
+        const workbook = XLSX.read(fileBuffer, { type: "buffer", cellDates: true, sheetRows: MAX_BARIS_EXCEL });
         const firstSheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[firstSheetName];
         rows = XLSX.utils.sheet_to_json(sheet, { defval: null });
+
+        if (rows.length === MAX_BARIS_EXCEL) {
+            console.warn(`[upload-bansos:${program.slug}] WARNING: baris mencapai batas ${MAX_BARIS_EXCEL}, kemungkinan ada data yang terpotong`);
+        }
     } catch (err) {
         console.error("XLSX READ ERROR:", err);
         return error(res, "Gagal membaca file Excel, pastikan formatnya benar", 400, err.message);
