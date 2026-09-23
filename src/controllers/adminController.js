@@ -953,3 +953,57 @@ export async function truncateBansos(req, res) {
         `Semua data "${program.nama}" berhasil dihapus. Auto-increment ID akan mulai dari 1 lagi.`
     );
 }
+
+export async function getBankDataPengusulan(req, res) {
+    const { search = "", kabupaten, page = 1, limit = 20 } = req.query;
+
+    const pageNum = Math.max(parseInt(page, 10) || 1, 1);
+    const limitNum = Math.max(parseInt(limit, 10) || 20, 1);
+    const skip = (pageNum - 1) * limitNum;
+
+    const keyword = String(search).trim();
+
+    const where = { status: "DISETUJUI" };
+
+    if (keyword) {
+        where.OR = [
+            { namaCalonPenerima: { contains: keyword } },
+            { nikCalonPenerima: { contains: keyword } },
+        ];
+    }
+
+    if (kabupaten) {
+        where.kabupaten = kabupaten;
+    }
+
+    const [total, data] = await Promise.all([
+        prisma.pengusulan.count({ where }),
+        prisma.pengusulan.findMany({
+            where,
+            orderBy: { diprosesAt: "desc" },
+            skip,
+            take: limitNum,
+            select: {
+                id: true,
+                namaCalonPenerima: true,
+                nikCalonPenerima: true,
+                jenisUsulan: true,
+                programSlug: true,
+                kabupaten: true,
+                nomorWhatsapp: true,
+                createdAt: true,
+                status: true,
+            },
+        }),
+    ]);
+
+    return success(res, {
+        data: data.map(formatRingkasanPengusulan),
+        pagination: {
+            total,
+            page: pageNum,
+            limit: limitNum,
+            totalPages: Math.max(Math.ceil(total / limitNum), 1),
+        },
+    });
+}
