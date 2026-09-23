@@ -17,6 +17,7 @@ import {
     STATUS_PENGUSULAN_UPDATE_VALID,
     formatRingkasanPengusulan,
     formatDetailPengusulan,
+    urlDokumen,
 } from "../utils/pengusulanMapper.js";
 
 async function hitungBansosDiWilayah(model, wilayah) {
@@ -963,47 +964,96 @@ export async function getBankDataPengusulan(req, res) {
 
     const keyword = String(search).trim();
 
-    const where = { status: "DISETUJUI" };
+    const whereDasar = { status: "DISETUJUI" };
 
     if (keyword) {
-        where.OR = [
+        whereDasar.OR = [
             { namaCalonPenerima: { contains: keyword } },
             { nikCalonPenerima: { contains: keyword } },
         ];
     }
 
     if (kabupaten) {
-        where.kabupaten = kabupaten;
+        whereDasar.kabupaten = kabupaten;
     }
 
-    const [total, data] = await Promise.all([
-        prisma.pengusulan.count({ where }),
-        prisma.pengusulan.findMany({
-            where,
-            orderBy: { diprosesAt: "desc" },
-            skip,
-            take: limitNum,
-            select: {
-                id: true,
-                namaCalonPenerima: true,
-                nikCalonPenerima: true,
-                jenisUsulan: true,
-                programSlug: true,
-                kabupaten: true,
-                nomorWhatsapp: true,
-                createdAt: true,
-                status: true,
-            },
-        }),
-    ]);
+    
+    const kandidatNik = await prisma.pengusulan.findMany({
+        where: whereDasar,
+        select: { nikCalonPenerima: true },
+        distinct: ["nikCalonPenerima"],
+    });
+
+    let nikDiWarga = [];
+    if (kandidatNik.length > 0) {
+        const wargaRows = await prisma.warga.findMany({
+            where: { nik: { in: kandidatNik.map((r) => r.nikCalonPenerima) } },
+            select: { nik: true },
+        });
+        nikDiWarga = wargaRows.map((w) => w.nik);
+    }
+
+    const where = {
+        ...whereDasar,
+        ...(nikDiWarga.length > 0 ? { nikCalonPenerima: { notIn: nikDiWarga } } : {}),
+    };
+
+    const total = kandidatNik.filter((r) => !nikDiWarga.includes(r.nikCalonPenerima)).length;
+
+    const data = await prisma.pengusulan.findMany({
+        where,
+        distinct: ["nikCalonPenerima"],
+        orderBy: { diprosesAt: "desc" },
+        skip,
+        take: limitNum,
+        select: {
+            id: true,
+            namaCalonPenerima: true,
+            nikCalonPenerima: true,
+            kabupaten: true,
+            nomorWhatsapp: true,
+            fotoKtp: true,
+        },
+    });
 
     return success(res, {
-        data: data.map(formatRingkasanPengusulan),
+        data: data.map((pengusulan) => ({
+            id: pengusulan.id,
+            namaPenerima: pengusulan.namaCalonPenerima,
+            nikPenerima: pengusulan.nikCalonPenerima,
+            kabupaten: pengusulan.kabupaten,
+            nomorWhatsapp: pengusulan.nomorWhatsapp,
+            fotoKtp: urlDokumen(pengusulan.fotoKtp),
+        })),
         pagination: {
             total,
             page: pageNum,
             limit: limitNum,
             totalPages: Math.max(Math.ceil(total / limitNum), 1),
         },
+    });
+}
+
+export async function getDetailBankDataPengusulan(req, res) {
+    const id = parseInt(req.params.id, 10);
+
+    if (Number.isNaN(id)) {
+        return error(res, "ID tidak valid", 400);
+    }
+
+    const pengusulan = await prisma.pengusulan.findUnique({ where: { id } });
+
+    if (!pengusulan || pengusulan.status !== "DISETUJUI") {
+        return error(res, "Data tidak ditemukan di bank data pengusulan", 404);
+    }
+
+    const bansosDiterima = await cariBansosDiterima(pengusulan.nikCalonPenerima);
+
+    return success(res, {
+        id: pengusulan.id,
+        nama: pengusulan.namaCalonPenerima,
+        nik: pengusulan.nikCalonPenerima,
+        kabupaten: pengusulan.kabupaten,
+        bansosDiterima,
     });
 }

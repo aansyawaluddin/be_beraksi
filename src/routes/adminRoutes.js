@@ -12,6 +12,7 @@ import {
     updateAccountSettings,
     getListPengusulan,
     getBankDataPengusulan,
+    getDetailBankDataPengusulan,
     getDetailPengusulan,
     updateStatusPengusulan,
     getGisPeta,
@@ -49,6 +50,7 @@ router.post("/bansos/:slug/truncate", asyncHandler(truncateBansos));
 // Pengusulan bantuan sosial
 router.get("/pengusulan", asyncHandler(getListPengusulan));
 router.get("/pengusulan/bank-data", asyncHandler(getBankDataPengusulan));
+router.get("/pengusulan/bank-data/:id", asyncHandler(getDetailBankDataPengusulan));
 router.get("/pengusulan/:id", asyncHandler(getDetailPengusulan));
 router.patch("/pengusulan/:id/status", asyncHandler(updateStatusPengusulan));
 
