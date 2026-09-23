@@ -15,12 +15,6 @@ export async function catatBansosDiterima(pengusulan, adminId, client = prisma) 
         select: { desaKelurahan: true },
     });
 
-    if (!warga) {
-        throw new Error(
-            `Data warga dengan NIK ${pengusulan.nikCalonPenerima} tidak ditemukan lagi di tabel Warga`
-        );
-    }
-
     const tahunBantuan = new Date().getFullYear();
 
     return client[program.model].upsert({
@@ -34,14 +28,14 @@ export async function catatBansosDiterima(pengusulan, adminId, client = prisma) 
             nik: pengusulan.nikCalonPenerima,
             nama: pengusulan.namaCalonPenerima,
             kabupaten: pengusulan.kabupaten,
-            desaKelurahan: warga.desaKelurahan,
+            desaKelurahan: warga?.desaKelurahan ?? null,
             tahunBantuan,
             createdById: adminId,
         },
         update: {
             nama: pengusulan.namaCalonPenerima,
             kabupaten: pengusulan.kabupaten,
-            desaKelurahan: warga.desaKelurahan,
+            desaKelurahan: warga?.desaKelurahan ?? null,
             createdById: adminId,
         },
     });

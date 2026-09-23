@@ -15,6 +15,7 @@ import {
     updateStatusPengusulan,
     getGisPeta,
     truncateWarga,
+    truncateBansos,
 } from "../controllers/adminController.js";
 import { authenticate } from "../middleware/authenticate.js";
 import upload from "../middleware/uploadExcel.js";
@@ -42,6 +43,7 @@ router.post("/warga/upload", upload.single("file"), asyncHandler(uploadWargaExce
 router.get("/bansos/programs", asyncHandler(getDaftarProgramBansos));
 router.get("/bansos/:slug", asyncHandler(getListBansosPenerima));
 router.post("/bansos/:slug/upload", upload.single("file"), asyncHandler(uploadBansosExcel));
+router.post("/bansos/:slug/truncate", asyncHandler(truncateBansos));
 
 // Pengusulan bantuan sosial
 router.get("/pengusulan", asyncHandler(getListPengusulan));

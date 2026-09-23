@@ -39,7 +39,7 @@ export async function cekStatusByNik(req, res) {
     });
 
     if (warga) {
-        const [bansosDiterima, bansosDiusulkan] = await Promise.all([
+        const [bansosDiterima, { bansosDiusulkan }] = await Promise.all([
             cariBansosDiterima(nikBersih),
             cariBansosDiusulkan(nikBersih),
         ]);
@@ -55,7 +55,7 @@ export async function cekStatusByNik(req, res) {
         }, "Data ditemukan");
     }
 
-    const [{ bansosDiterima, profil }, bansosDiusulkan] = await Promise.all([
+    const [{ bansosDiterima, profil: profilBansos }, { bansosDiusulkan, profil: profilPengusulan }] = await Promise.all([
         cariDataPenerimaBansos(nikBersih),
         cariBansosDiusulkan(nikBersih),
     ]);
@@ -63,6 +63,8 @@ export async function cekStatusByNik(req, res) {
     if (bansosDiterima.length === 0 && bansosDiusulkan.length === 0) {
         return error(res, "Data dengan NIK tersebut tidak ditemukan", 404);
     }
+
+    const profil = profilBansos || profilPengusulan;
 
     return success(res, {
         nik: maskNik(nikBersih),
@@ -73,6 +75,7 @@ export async function cekStatusByNik(req, res) {
         bansosDiterima: [...bansosDiterima, ...bansosDiusulkan],
     }, "Data ditemukan (NIK belum terdaftar di DTKS, sehingga desil tidak tersedia)");
 }
+
 export function getProgramBantuan(req, res) {
     const programBantuan = BANSOS_PROGRAMS.map(({ slug, nama, bidang }) => ({
         slug,
@@ -81,64 +84,6 @@ export function getProgramBantuan(req, res) {
     }));
 
     return success(res, programBantuan);
-}
-
-async function cekKelayakanWarga(nik) {
-    const warga = await prisma.warga.findUnique({
-        where: { nik },
-        select: {
-            nama: true,
-            kabupaten: true,
-            kecamatan: true,
-            desilTerbaru: true,
-        },
-    });
-
-    if (!warga) {
-        return { ditemukan: false, layak: false };
-    }
-
-    const desil = parseDesil(warga.desilTerbaru);
-    const layak = Boolean(desil && desil >= 1 && desil <= 5);
-
-    return {
-        ditemukan: true,
-        layak,
-        nama: warga.nama,
-        kabupaten: warga.kabupaten,
-        kecamatan: warga.kecamatan,
-        desil,
-    };
-}
-
-export async function cekKelayakanNik(req, res) {
-    const { nik } = req.body;
-
-    if (!nik || String(nik).trim() === "") {
-        return error(res, "NIK wajib diisi", 400);
-    }
-
-    const nikBersih = String(nik).trim();
-    if (!/^\d{16}$/.test(nikBersih)) {
-        return error(res, "NIK harus terdiri dari 16 digit angka", 400);
-    }
-
-    const hasil = await cekKelayakanWarga(nikBersih);
-
-    if (!hasil.ditemukan) {
-        return error(res, "NIK tidak ditemukan dalam basis data DTKS", 404);
-    }
-
-    return success(res, {
-        nama: hasil.nama,
-        kabupaten: hasil.kabupaten,
-        kecamatan: hasil.kecamatan,
-        desil: hasil.desil,
-        layakDiusulkan: hasil.layak,
-        pesan: hasil.layak
-            ? "NIK ditemukan dan berhak diusulkan"
-            : "NIK ditemukan, namun tidak berada di posisi Desil 1-5 sehingga tidak berhak diusulkan",
-    }, "Data ditemukan");
 }
 
 function simpanFileKeFolder(file, prefix, folderPenerima, nikPenerima) {
@@ -222,16 +167,6 @@ export async function createPengusulan(req, res) {
 
     if (!program) {
         return error(res, "Program bantuan yang dipilih tidak ditemukan", 400);
-    }
-
-    const kelayakan = await cekKelayakanWarga(nikCalonPenerimaBersih);
-
-    if (!kelayakan.ditemukan) {
-        return error(res, "NIK calon penerima tidak ditemukan dalam basis data DTKS", 404);
-    }
-
-    if (!kelayakan.layak) {
-        return error(res, "Hanya warga dengan posisi Desil 1-5 yang berhak diusulkan", 403);
     }
 
     const folderPenerima = path.join(UPLOAD_ROOT_PENGUSULAN, nikCalonPenerimaBersih);

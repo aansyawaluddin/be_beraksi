@@ -19,9 +19,26 @@ import {
     formatDetailPengusulan,
 } from "../utils/pengusulanMapper.js";
 
+async function hitungBansosDiWilayah(model, wilayah) {
+    const rows = await prisma[model].findMany({ select: { kabupaten: true } });
+    return rows.reduce(
+        (total, r) => total + (cocokkanWilayah(r.kabupaten)?.key === wilayah.key ? 1 : 0),
+        0
+    );
+}
+
 export async function getDashboardStats(req, res) {
+    const kabupatenParam = String(req.query.kabupaten || "").trim();
+    const wilayahDipilih = kabupatenParam ? cocokkanWilayah(kabupatenParam) : null;
+
+    if (kabupatenParam && !wilayahDipilih) {
+        return error(res, "Kabupaten/kota tidak dikenali", 400);
+    }
+
     const usia60TahunLalu = new Date();
     usia60TahunLalu.setFullYear(usia60TahunLalu.getFullYear() - 60);
+
+    const wargaWhereKabupaten = kabupatenParam ? { kabupaten: kabupatenParam } : {};
 
     const [
         totalWarga,
@@ -30,13 +47,16 @@ export async function getDashboardStats(req, res) {
         desilGroups,
         bansosCounts,
     ] = await Promise.all([
-        prisma.warga.count(),
-        prisma.warga.count({ where: isAktifWhere("disabilitas") }),
+        prisma.warga.count({ where: wargaWhereKabupaten }),
         prisma.warga.count({
-            where: { tanggalLahir: { lte: usia60TahunLalu } },
+            where: { ...isAktifWhere("disabilitas"), ...wargaWhereKabupaten },
+        }),
+        prisma.warga.count({
+            where: { tanggalLahir: { lte: usia60TahunLalu }, ...wargaWhereKabupaten },
         }),
         prisma.warga.groupBy({
             by: ["desilTerbaru"],
+            where: wargaWhereKabupaten,
             _count: { _all: true },
         }),
         Promise.all(
@@ -44,7 +64,9 @@ export async function getDashboardStats(req, res) {
                 bidang: program.bidang,
                 programSlug: program.slug,
                 namaProgram: program.nama,
-                jumlah: await prisma[program.model].count(),
+                jumlah: wilayahDipilih
+                    ? await hitungBansosDiWilayah(program.model, wilayahDipilih)
+                    : await prisma[program.model].count(),
             }))
         ),
     ]);
@@ -66,6 +88,7 @@ export async function getDashboardStats(req, res) {
     }));
 
     return success(res, {
+        kabupaten: wilayahDipilih ? wilayahDipilih.nama : null,
         totalWarga,
         jumlahLansia: lansiaCount,
         penyandangDisabilitas: disabilitasCount,
@@ -892,5 +915,41 @@ export async function truncateWarga(req, res) {
         res,
         { totalDihapus: totalSebelum },
         "Semua data warga berhasil dihapus. Auto-increment ID akan mulai dari 1 lagi."
+    );
+}
+
+export async function truncateBansos(req, res) {
+    const program = getBansosProgramBySlug(req.params.slug);
+
+    if (!program) {
+        return error(res, "Program bansos tidak dikenali", 404);
+    }
+
+    const { konfirmasi } = req.body;
+    const konfirmasiValid = `HAPUS SEMUA DATA ${program.slug.toUpperCase()}`;
+
+    const totalSebelum = await prisma[program.model].count();
+
+    if (konfirmasi !== konfirmasiValid) {
+        return error(
+            res,
+            `Konfirmasi tidak valid. Aksi ini akan menghapus SEMUA ${totalSebelum} data "${program.nama}" secara permanen dan tidak bisa dibatalkan. Untuk melanjutkan, kirim ulang request dengan body { "konfirmasi": "${konfirmasiValid}" }`,
+            400
+        );
+    }
+
+    try {
+        await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${program.tabel}`);
+    } catch (err) {
+        console.error(`TRUNCATE BANSOS (${program.slug}) ERROR:`, err);
+        return error(res, `Gagal menghapus data "${program.nama}"`, 500, err.message);
+    }
+
+    console.log(`[truncate-bansos] ${program.slug}: ${totalSebelum} baris dihapus oleh user id ${req.user.id}`);
+
+    return success(
+        res,
+        { slug: program.slug, nama: program.nama, totalDihapus: totalSebelum },
+        `Semua data "${program.nama}" berhasil dihapus. Auto-increment ID akan mulai dari 1 lagi.`
     );
 }

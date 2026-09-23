@@ -29,10 +29,11 @@ export async function cariBansosDiusulkan(nik) {
     try {
         const rows = await prisma.pengusulan.findMany({
             where: { nikCalonPenerima: nik, status: "MENUNGGU_REVIEW" },
-            select: { programSlug: true },
+            select: { programSlug: true, namaCalonPenerima: true, kabupaten: true },
+            orderBy: { createdAt: "desc" },
         });
 
-        return rows.map((row) => {
+        const bansosDiusulkan = rows.map((row) => {
             const program = getBansosProgramBySlug(row.programSlug);
             return {
                 program: program ? program.nama : row.programSlug,
@@ -42,9 +43,15 @@ export async function cariBansosDiusulkan(nik) {
                 statusLabel: "Menunggu Review",
             };
         });
+
+        const profil = rows.length > 0
+            ? { nama: rows[0].namaCalonPenerima, kabupaten: rows[0].kabupaten, desaKelurahan: null }
+            : null;
+
+        return { bansosDiusulkan, profil };
     } catch (err) {
         console.error("GAGAL CEK PENGUSULAN:", err);
-        return [];
+        return { bansosDiusulkan: [], profil: null };
     }
 }
 
